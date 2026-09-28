@@ -8,7 +8,7 @@ return [
         'port' => (int)(getenv('DB_PORT') ?: 3306),
         'name' => getenv('DB_NAME') ?: 'apexnode',
         'user' => getenv('DB_USER') ?: 'apexnode',
-        'pass' => getenv('DB_PASS') ?: 'apex_local_dev',
+        'pass' => getenv('DB_PASS') ?: '',
     ],
     'redis' => [
         'host' => getenv('REDIS_HOST') ?: '127.0.0.1',

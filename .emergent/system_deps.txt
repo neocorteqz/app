@@ -10,4 +10,4 @@ php-redis=5.3.7+4.3.0-3
 php-sqlite3=2:8.2+93
 php-xml=2:8.2+93
 php-zip=2:8.2+93
-redis-server=5:7.0.15-1~deb12u9
+redis-server=5:7.0.15-1~deb12u10

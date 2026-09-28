@@ -2,6 +2,8 @@
 // Router entry point - handles all requests
 require_once __DIR__ . '/../app/helpers.php';
 
+require_https();
+
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $path = rtrim($path, '/') ?: '/';
 $method = $_SERVER['REQUEST_METHOD'];
