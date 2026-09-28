@@ -73,8 +73,17 @@ function run_backup(array $schedule, array $server): void {
 
     // Retention: keep newest N
     $keep = (int)($schedule['retention'] ?: 7);
-    $olds = DB::all('SELECT id, path, remote_url FROM backups WHERE server_id=? AND status="completed" ORDER BY id DESC LIMIT 100 OFFSET ?', [$sid, $keep]);
+    $olds = DB::all('SELECT id, path, remote_url FROM backups WHERE server_id=? AND status IN ("completed","restored") ORDER BY id DESC LIMIT 100 OFFSET ?', [$sid, $keep]);
     foreach ($olds as $o) {
+        if (!empty($o['remote_url']) && str_starts_with($o['remote_url'], 's3://') && !empty($schedule['s3_bucket']) && !empty($schedule['s3_access_key']) && !empty($schedule['s3_secret_key'])) {
+            $env = 'AWS_ACCESS_KEY_ID=' . escapeshellarg($schedule['s3_access_key']) . ' AWS_SECRET_ACCESS_KEY=' . escapeshellarg($schedule['s3_secret_key']);
+            $endpoint = $schedule['s3_endpoint'] ? '--endpoint-url ' . escapeshellarg($schedule['s3_endpoint']) : '';
+            exec($env . ' aws s3 rm ' . escapeshellarg($o['remote_url']) . ' ' . $endpoint . ' 2>&1', $deleteOutput, $deleteCode);
+            if ($deleteCode !== 0) {
+                log_line($sid, '[backup] Retention could not remove remote snapshot ' . basename($o['remote_url']), 'warn');
+                continue;
+            }
+        }
         if ($o['path'] && file_exists($o['path'])) @unlink($o['path']);
         DB::q('DELETE FROM backups WHERE id=?', [$o['id']]);
     }

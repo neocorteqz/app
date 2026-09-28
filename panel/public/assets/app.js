@@ -6,6 +6,14 @@
     if (t) {
       document.querySelector('.sidebar')?.classList.toggle('open');
     }
+    const copy = e.target.closest('[data-copy-value]');
+    if (copy && navigator.clipboard) {
+      navigator.clipboard.writeText(copy.dataset.copyValue).then(() => {
+        const oldTitle = copy.title;
+        copy.title = 'Copied';
+        setTimeout(() => { copy.title = oldTitle; }, 1500);
+      }).catch(() => {});
+    }
   });
 
   // Confirm dialogs on form buttons

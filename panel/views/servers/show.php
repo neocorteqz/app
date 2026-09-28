@@ -6,13 +6,16 @@
     <p class="mono muted">◉ <?= h($s['node_name']) ?> · :<?= (int)$s['port'] ?> · <?= (int)$s['players_online'] ?>/<?= (int)$s['players_max'] ?> players</p>
   </div>
   <div class="row">
-    <a href="/servers/<?= (int)$s['id'] ?>/files" class="btn" data-testid="tab-files">≡ Files</a>
-    <a href="/servers/<?= (int)$s['id'] ?>/backups" class="btn" data-testid="tab-backups">◱ Backups</a>
+    <?php if (in_array($user['role'] ?? '', ['admin','operator'], true)): ?><a href="/servers/<?= (int)$s['id'] ?>/access" class="btn btn-sm" data-testid="server-access-link">♙ Access</a><?php endif; ?>
+    <?php if ($can_view_files): ?><a href="/servers/<?= (int)$s['id'] ?>/files" class="btn" data-testid="tab-files">≡ Files</a><?php endif; ?>
+    <?php if ($can_view_backups): ?><a href="/servers/<?= (int)$s['id'] ?>/backups" class="btn" data-testid="tab-backups">◱ Backups</a><?php endif; ?>
+    <?php if ($can_control): ?>
     <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="start"><button class="btn btn-primary btn-sm" data-testid="btn-start">▶ Start</button></form>
     <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="stop"><button class="btn btn-danger btn-sm" data-testid="btn-stop">■ Stop</button></form>
     <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="restart"><button class="btn btn-sm" data-testid="btn-restart">↻ Restart</button></form>
     <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="kill"><button class="btn btn-sm" data-testid="btn-kill">☠ Kill</button></form>
-    <form method="post" action="/servers/delete" data-confirm="Delete this server?" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><button class="btn btn-sm btn-danger" data-testid="btn-delete">✕ Delete</button></form>
+    <?php if (($user['role'] ?? '') === 'admin'): ?><form method="post" action="/servers/delete" data-confirm="Delete this server?" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><button class="btn btn-sm btn-danger" data-testid="btn-delete">✕ Delete</button></form><?php endif; ?>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -21,16 +24,16 @@
     <div class="card-title"><h3>◐ Active Jobs</h3><a href="/jobs" class="btn btn-sm">All Jobs →</a></div>
     <div id="jobs-list"></div>
   </div>
-  <div class="card span-3" id="console-mount" data-server-id="<?= (int)$s['id'] ?>" data-testid="console-panel">
+  <?php if ($can_view_console): ?><div class="card span-3" id="console-mount" data-server-id="<?= (int)$s['id'] ?>" data-testid="console-panel">
     <div class="card-title"><h3>▶ Live Console</h3><span class="chip accent blink">STREAM</span></div>
     <div class="console">
       <div class="log" data-testid="console-log"></div>
-      <div class="cmd">
+      <?php if ($can_control): ?><div class="cmd">
         <span class="prompt">$</span>
         <input type="text" placeholder="type command (say hello, list, help) and press Enter" data-testid="console-input" autocomplete="off">
-      </div>
+      </div><?php endif; ?>
     </div>
-  </div>
+  </div><?php else: ?><div class="card span-3 muted">Console access is not granted for this server.</div><?php endif; ?>
   <div class="card">
     <div class="card-title"><h3>Resources</h3></div>
     <div class="form-group">

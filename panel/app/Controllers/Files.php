@@ -15,10 +15,17 @@ class Files {
     private function base(array $s): string {
         $base = $s['work_dir'] ?: ('/var/lib/apexnode/servers/' . (int)$s['id']);
         if (!is_dir($base)) { @mkdir($base, 0755, true); }
-        DB::q('UPDATE servers SET work_dir=? WHERE id=?', [$base, $s['id']]);
-        return realpath($base) ?: $base;
+        $root = realpath('/var/lib/apexnode/servers');
+        $resolved = realpath($base);
+        if (!$root || !$resolved || ($resolved !== $root && !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR))) {
+            http_response_code(500);
+            die('Server files are outside the managed root.');
+        }
+        DB::q('UPDATE servers SET work_dir=? WHERE id=?', [$resolved, $s['id']]);
+        return $resolved;
     }
     private function resolve(string $base, string $rel): ?string {
+        $base = rtrim($base, DIRECTORY_SEPARATOR);
         $rel = ltrim($rel, '/');
         $target = $base . '/' . $rel;
         // Normalise
@@ -29,12 +36,27 @@ class Files {
             $parts[] = $p;
         }
         $abs = '/' . implode('/', $parts);
-        if (!str_starts_with($abs, $base)) return null;
+        $prefix = $base . DIRECTORY_SEPARATOR;
+        if ($abs !== $base && !str_starts_with($abs, $prefix)) return null;
+
+        $probe = $abs;
+        while ($probe !== $base && !file_exists($probe) && !is_link($probe)) {
+            $parent = dirname($probe);
+            if ($parent === $probe) return null;
+            $probe = $parent;
+        }
+        $resolvedRoot = realpath($base);
+        $resolvedProbe = realpath($probe);
+        if (!$resolvedRoot || !$resolvedProbe || ($resolvedProbe !== $resolvedRoot && !str_starts_with($resolvedProbe, $resolvedRoot . DIRECTORY_SEPARATOR))) return null;
+        if ((file_exists($abs) || is_link($abs))) {
+            $resolvedTarget = realpath($abs);
+            if (!$resolvedTarget || ($resolvedTarget !== $resolvedRoot && !str_starts_with($resolvedTarget, $resolvedRoot . DIRECTORY_SEPARATOR))) return null;
+        }
         return $abs;
     }
 
     public function index(int $id) {
-        \require_login();
+        \require_server_permission($id, 'view_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $path = $_GET['path'] ?? '';
@@ -56,7 +78,7 @@ class Files {
     }
 
     public function edit(int $id) {
-        \require_login();
+        \require_server_permission($id, 'view_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = $_GET['path'] ?? '';
@@ -69,7 +91,7 @@ class Files {
     }
 
     public function save(int $id) {
-        \check_csrf(); \require_role('operator');
+        \check_csrf(); \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = $_POST['path'] ?? '';
@@ -83,7 +105,7 @@ class Files {
     }
 
     public function mkdir(int $id) {
-        \check_csrf(); \require_role('operator');
+        \check_csrf(); \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = trim($_POST['path'] ?? '', '/');
@@ -95,7 +117,7 @@ class Files {
     }
 
     public function touch(int $id) {
-        \check_csrf(); \require_role('operator');
+        \check_csrf(); \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = trim($_POST['path'] ?? '', '/');
@@ -107,7 +129,7 @@ class Files {
     }
 
     public function delete(int $id) {
-        \check_csrf(); \require_role('operator');
+        \check_csrf(); \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = $_POST['path'] ?? '';
@@ -121,7 +143,7 @@ class Files {
     }
 
     public function upload(int $id) {
-        \check_csrf(); \require_role('operator');
+        \check_csrf(); \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = trim($_POST['path'] ?? '', '/');
@@ -137,7 +159,7 @@ class Files {
     }
 
     public function download(int $id) {
-        \require_login();
+        \require_server_permission($id, 'view_files');
         $s = $this->server($id);
         $base = $this->base($s);
         $rel = $_GET['path'] ?? '';

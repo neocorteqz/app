@@ -17,6 +17,22 @@
   <div class="card stat" data-testid="stat-players"><div><div class="label">Players in-game</div><div class="value"><?= $stats['players'] ?></div></div><div class="mono muted">Σ live</div></div>
 </div>
 
+<div class="between" style="margin-top:22px">
+  <div><div class="section-title" style="margin:0">Operations</div><h2>Operational alerts <span class="chip" data-testid="alert-count"><?= count($alerts) ?></span></h2></div>
+</div>
+<div class="card" data-testid="operational-alerts">
+  <?php if (empty($alerts)): ?>
+    <div class="between"><span>No active operational alerts.</span><span class="status status-online">HEALTHY</span></div>
+  <?php else: ?>
+    <?php foreach ($alerts as $alert): ?>
+      <div class="between" style="gap:16px;padding:10px 0;border-bottom:1px solid var(--border-soft)">
+        <div><strong><?= h($alert['title']) ?></strong><div class="muted" style="margin-top:4px"><?= h($alert['detail']) ?></div></div>
+        <div class="row"><span class="status status-<?= $alert['severity']==='error'?'offline':'starting' ?>"><?= strtoupper($alert['severity']) ?></span><a class="btn btn-sm" href="<?= h($alert['url']) ?>">Review</a></div>
+      </div>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</div>
+
 <div class="section-title">Active Fleet</div>
 <div id="server-list-mount" class="bento" data-testid="dashboard-servers">
   <?php foreach ($servers as $s): $g = game_meta($s['game']); ?>

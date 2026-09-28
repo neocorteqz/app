@@ -42,6 +42,7 @@ $routes = [
     'POST /users/delete'           => ['App\\Controllers\\Users', 'delete'],
     'GET /database-users'          => ['App\\Controllers\\DatabaseUsers', 'index'],
     'POST /database-users'         => ['App\\Controllers\\DatabaseUsers', 'store'],
+    'POST /database-users/rotate'  => ['App\\Controllers\\DatabaseUsers', 'rotate'],
     'POST /database-users/delete'  => ['App\\Controllers\\DatabaseUsers', 'delete'],
 
     'GET /theme'                   => ['App\\Controllers\\Theme', 'index'],
@@ -60,6 +61,7 @@ $routes = [
     'GET /service-worker.js'       => ['App\\Controllers\\Pwa', 'serviceWorker'],
 
     'GET /eggs'                    => ['App\\Controllers\\Eggs', 'index'],
+    'POST /eggs/preview'            => ['App\\Controllers\\Eggs', 'previewImport'],
     'POST /eggs/import'            => ['App\\Controllers\\Eggs', 'import'],
     'GET /mods'                    => ['App\\Controllers\\Mods', 'index'],
     'GET /jobs'                    => ['App\\Controllers\\Jobs', 'index'],
@@ -77,8 +79,16 @@ if (preg_match('#^/jobs/(\d+)/cancel$#', $path, $m) && $method === 'POST') {
     (new App\Controllers\Jobs())->cancel((int)$m[1]); return true;
 }
 if (preg_match('#^/json/servers/(\d+)/jobs$#', $path, $m) && $method === 'GET') {
+    require_server_permission((int)$m[1], 'view_console');
     require_once __DIR__ . '/../app/Controllers/Jobs.php';
     (new App\Controllers\Jobs())->apiForServer((int)$m[1]); return true;
+}
+
+if (preg_match('#^/servers/(\d+)/access$#', $path, $m) && in_array($method, ['GET','POST'], true)) {
+    require_once __DIR__ . '/../app/Controllers/ServerAccess.php';
+    $controller = new App\Controllers\ServerAccess();
+    $method === 'POST' ? $controller->save((int)$m[1]) : $controller->index((int)$m[1]);
+    return true;
 }
 
 // Daemon API passthrough

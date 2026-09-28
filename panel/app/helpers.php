@@ -104,6 +104,24 @@ function require_role(string $role): array {
     return $u;
 }
 
+function require_server_permission(int $serverId, string $permission): array {
+    $u = require_login();
+    $valid = ['view_server', 'view_console', 'control_server', 'view_files', 'manage_files', 'view_backups', 'manage_backups'];
+    if (!in_array($permission, $valid, true)) throw new InvalidArgumentException('Unknown server permission.');
+    if (in_array($u['role'], ['admin', 'operator'], true)) return $u;
+    $server = DB::one('SELECT owner_id FROM servers WHERE id=?', [$serverId]);
+    if (!$server) { http_response_code(404); view('errors/404'); exit; }
+    if ((int)$server['owner_id'] === (int)$u['id']) return $u;
+    $access = DB::one("SELECT {$permission} AS allowed FROM server_access WHERE server_id=? AND user_id=?", [$serverId, $u['id']]);
+    if (empty($access['allowed'])) { http_response_code(403); die('Forbidden'); }
+    return $u;
+}
+
+function accessible_server_filter(array $user, string $alias = 's'): array {
+    if (in_array($user['role'], ['admin', 'operator'], true)) return ['', []];
+    return [" WHERE ({$alias}.owner_id=? OR EXISTS (SELECT 1 FROM server_access sa WHERE sa.server_id={$alias}.id AND sa.user_id=? AND sa.view_server=1))", [(int)$user['id'], (int)$user['id']]];
+}
+
 function flash(string $key, ?string $msg = null) {
     if ($msg === null) {
         $v = $_SESSION['flash'][$key] ?? null;

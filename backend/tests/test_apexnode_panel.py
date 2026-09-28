@@ -83,6 +83,64 @@ class TestSidebarNav:
         assert r.status_code == 200, f"{path} -> {r.status_code}"
 
 
+class TestOperationalAlerts:
+    def test_dashboard_has_alert_panel(self, admin_session):
+        r = admin_session.get(f"{BASE}/dashboard", verify=False)
+        assert r.status_code == 200
+        assert 'data-testid="operational-alerts"' in r.text
+        assert 'data-testid="alert-count"' in r.text
+
+
+class TestServerAccess:
+    def test_viewer_file_access_is_server_scoped(self, admin_session):
+        unique = int(time.time())
+        username = f"acl_{unique}"
+        password = "ViewerPass123!"
+        page = admin_session.get(f"{BASE}/users", verify=False)
+        csrf = _get_csrf(page.text)
+        created = admin_session.post(f"{BASE}/users", data={
+            "_csrf": csrf, "username": username, "email": f"{username}@example.test",
+            "password": password, "role": "viewer",
+        }, allow_redirects=False, verify=False)
+        assert created.status_code in (302, 303)
+
+        try:
+            access_page = admin_session.get(f"{BASE}/servers/1/access", verify=False)
+            assert access_page.status_code == 200
+            assert username in access_page.text
+            csrf = _get_csrf(access_page.text)
+            viewer_id = re.search(r'data-testid="access-user-(\d+)"', access_page.text).group(1)
+            granted = admin_session.post(f"{BASE}/servers/1/access", data={
+                "_csrf": csrf, "user_id": viewer_id,
+                "view_files": "1",
+            }, allow_redirects=False, verify=False)
+            assert granted.status_code in (302, 303)
+
+            viewer = requests.Session()
+            login = viewer.get(f"{BASE}/login", verify=False)
+            csrf = _get_csrf(login.text)
+            viewer.post(f"{BASE}/login", data={
+                "_csrf": csrf, "email": f"{username}@example.test", "password": password,
+            }, allow_redirects=False, verify=False)
+            assert viewer.get(f"{BASE}/servers/1/files", verify=False).status_code == 200
+            assert viewer.get(f"{BASE}/json/servers/1/jobs", verify=False).status_code == 403
+            server_page = viewer.get(f"{BASE}/servers/1", verify=False, allow_redirects=False)
+            assert server_page.status_code == 200
+            assert 'data-testid="console-panel"' not in server_page.text
+            csrf = _get_csrf(viewer.get(f"{BASE}/servers/1/files", verify=False).text)
+            denied = viewer.post(f"{BASE}/servers/1/files/save", data={
+                "_csrf": csrf, "path": "server.properties", "content": "nope",
+            }, allow_redirects=False, verify=False)
+            assert denied.status_code == 403
+        finally:
+            page = admin_session.get(f"{BASE}/users", verify=False)
+            match = re.search(rf'<tr>.*?{re.escape(username)}.*?name="id" value="(\d+)".*?</tr>', page.text, re.S)
+            if match:
+                admin_session.post(f"{BASE}/users/delete", data={
+                    "_csrf": _get_csrf(page.text), "id": match.group(1),
+                }, allow_redirects=False, verify=False)
+
+
 # --- servers ----------------------------------------------------------------
 class TestServers:
     def test_list_shows_seeded(self, admin_session):
@@ -196,7 +254,31 @@ class TestModsEggs:
 
         follow = admin_session.get(f"{BASE}/database-users", verify=False)
         assert follow.status_code == 200
-        assert name in follow.text or db_name in follow.text
+        if 'data-testid="credential-reveal"' not in follow.text:
+            assert 'data-testid="db-provisioning-unconfigured"' in follow.text
+            pytest.skip("database provisioning credentials are not configured in this local environment")
+        assert name in follow.text or f"apexnode_{db_name}" in follow.text
+        assert 'data-testid="credential-reveal"' in follow.text
+        assert password in follow.text
+        row_html = re.search(r'<tr data-testid="db-user-(\d+)"[^>]*>.*?' + re.escape(name) + r'.*?</tr>', follow.text, re.S)
+        assert row_html, "created database-user row not found"
+        db_user_id = row_html.group(1)
+        assert f'data-testid="rotate-db-password-{db_user_id}"' in follow.text
+
+        hidden = admin_session.get(f"{BASE}/database-users", verify=False)
+        assert password not in hidden.text
+
+        csrf = _get_csrf(hidden.text)
+        rotated = admin_session.post(
+            f"{BASE}/database-users/rotate",
+            data={"_csrf": csrf, "id": db_user_id},
+            allow_redirects=False,
+            verify=False,
+        )
+        assert rotated.status_code in (200, 302, 303)
+        reveal = admin_session.get(f"{BASE}/database-users", verify=False)
+        assert 'data-testid="credential-reveal"' in reveal.text
+        assert password not in reveal.text
 
     def test_pterodactyl_egg_import_flow(self, admin_session):
         unique = int(time.time())
@@ -214,6 +296,15 @@ class TestModsEggs:
         csrf = _get_csrf(page.text)
 
         r = admin_session.post(
+            f"{BASE}/eggs/preview",
+            data={"_csrf": csrf, "egg_json": json.dumps(payload)},
+            allow_redirects=False,
+            verify=False,
+        )
+        assert r.status_code in (200, 302, 303), r.status_code
+        assert 'data-testid="egg-import-preview"' in r.text
+        csrf = _get_csrf(r.text)
+        r = admin_session.post(
             f"{BASE}/eggs/import",
             data={"_csrf": csrf, "egg_json": json.dumps(payload)},
             allow_redirects=False,
@@ -224,6 +315,26 @@ class TestModsEggs:
         follow = admin_session.get(f"{BASE}/eggs", verify=False)
         assert follow.status_code == 200
         assert egg_name in follow.text
+
+        changed = dict(payload, startup="java -jar updated-server.jar nogui")
+        csrf = _get_csrf(follow.text)
+        preview = admin_session.post(f"{BASE}/eggs/preview", data={
+            "_csrf": csrf, "egg_json": json.dumps(changed),
+        }, allow_redirects=False, verify=False)
+        assert preview.status_code == 200
+        assert 'data-testid="egg-update-state"' in preview.text
+        assert "Update available" in preview.text
+        csrf = _get_csrf(preview.text)
+        updated = admin_session.post(f"{BASE}/eggs/import", data={
+            "_csrf": csrf, "egg_json": json.dumps(changed),
+        }, allow_redirects=False, verify=False)
+        assert updated.status_code in (200, 302, 303)
+        confirmed = admin_session.get(f"{BASE}/eggs", verify=False)
+        egg_name_position = confirmed.text.find(f"<h3>{egg_name}</h3>")
+        details_link = re.search(r'data-testid="egg-details-(\d+)"', confirmed.text[egg_name_position:]) if egg_name_position >= 0 else None
+        assert details_link, f"updated egg details link not found: {egg_name}"
+        details = admin_session.get(f"{BASE}/eggs/{details_link.group(1)}", verify=False)
+        assert "updated-server.jar" in details.text
 
 
 # --- theme -----------------------------------------------------------------
@@ -310,3 +421,18 @@ class TestFiles:
         assert r.status_code in (200, 302, 303, 400, 403)
         if r.status_code == 200:
             assert "passwd" not in r.text and "root:" not in r.text
+
+    def test_sibling_prefix_path_is_blocked(self, admin_session):
+        sibling_id = f"1{int(time.time())}"
+        sibling_dir = f"/var/lib/apexnode/servers/{sibling_id}"
+        os.mkdir(sibling_dir)
+        try:
+            r = admin_session.get(
+                f"{BASE}/servers/1/files",
+                params={"path": f"../{sibling_id}"},
+                allow_redirects=False,
+                verify=False,
+            )
+            assert r.status_code in (302, 303, 400, 403)
+        finally:
+            os.rmdir(sibling_dir)

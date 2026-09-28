@@ -50,7 +50,7 @@ function fmt_bytes2($b) {
       <div class="form-group"><label>Bucket</label><input name="s3_bucket" value="<?= h($sched['s3_bucket'] ?? '') ?>" data-testid="s3-bucket"></div>
       <div class="form-group"><label>Endpoint (for B2/Wasabi)</label><input name="s3_endpoint" value="<?= h($sched['s3_endpoint'] ?? '') ?>" placeholder="https://s3.us-west-002.backblazeb2.com" data-testid="s3-endpoint"></div>
       <div class="form-group"><label>Access Key</label><input name="s3_access_key" value="<?= h($sched['s3_access_key'] ?? '') ?>" data-testid="s3-key"></div>
-      <div class="form-group"><label>Secret Key</label><input type="password" name="s3_secret_key" value="<?= h($sched['s3_secret_key'] ?? '') ?>" data-testid="s3-secret"></div>
+      <div class="form-group"><label>Secret Key</label><input type="password" name="s3_secret_key" value="" placeholder="<?= isset($sched['id']) ? 'Stored; leave blank to keep' : 'Enter secret key' ?>" autocomplete="new-password" data-testid="s3-secret"></div>
     </div>
     <div class="between">
       <p class="mono muted">Last run: <?= h($sched['last_run'] ?: 'never') ?></p>
@@ -73,8 +73,9 @@ function fmt_bytes2($b) {
           <td style="text-align:right">
             <?php if ($b['status'] === 'completed'): ?>
               <a href="/servers/<?= (int)$s['id'] ?>/backups/download?backup_id=<?= (int)$b['id'] ?>" class="btn btn-sm">⬇</a>
-              <form method="post" action="/servers/<?= (int)$s['id'] ?>/backups/restore" data-confirm="Overwrite server files with this backup?" style="display:inline-block;margin:0">
+              <form method="post" action="/servers/<?= (int)$s['id'] ?>/backups/restore" data-confirm="Overwrite server files with this backup? The server must be stopped." style="display:inline-block;margin:0">
                 <?= csrf_field() ?><input type="hidden" name="backup_id" value="<?= (int)$b['id'] ?>">
+                <input name="confirm_restore" required pattern="RESTORE" placeholder="Type RESTORE" aria-label="Type RESTORE to confirm" style="width:120px">
                 <button class="btn btn-sm btn-primary" data-testid="restore-<?= (int)$b['id'] ?>">↩ Restore</button>
               </form>
             <?php endif; ?>

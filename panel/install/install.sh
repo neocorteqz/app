@@ -16,6 +16,7 @@ APEX_DIR="/opt/apexnode"
 DB_NAME="apexnode"
 DB_USER="apexnode"
 DB_PASS="$(openssl rand -hex 16)"
+DB_PROVISIONER_PASS="$(openssl rand -hex 24)"
 
 PANEL_PORT="80"
 COEXIST="standalone"
@@ -45,13 +46,16 @@ mysql -uroot <<SQL
 CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
+CREATE USER IF NOT EXISTS 'apexnode_provisioner'@'localhost' IDENTIFIED BY '${DB_PROVISIONER_PASS}';
+GRANT CREATE, CREATE USER ON *.* TO 'apexnode_provisioner'@'localhost';
+GRANT ALL PRIVILEGES ON \`apexnode_%\`.* TO 'apexnode_provisioner'@'localhost' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 SQL
 
 banner "Deploying ApexNode files to ${APEX_DIR}"
 mkdir -p "${APEX_DIR}"
 cp -r ./* "${APEX_DIR}/"
-for sql in schema.sql schema_v2.sql schema_v3.sql schema_v4.sql schema_v5.sql; do
+for sql in schema.sql schema_v2.sql schema_v3.sql schema_v4.sql schema_v5.sql schema_v6.sql; do
   [[ -f "${APEX_DIR}/db/$sql" ]] && mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "${APEX_DIR}/db/$sql"
 done
 
@@ -61,10 +65,13 @@ DB_PORT=3306
 DB_NAME=${DB_NAME}
 DB_USER=${DB_USER}
 DB_PASS=${DB_PASS}
+DB_PROVISIONER_USER=apexnode_provisioner
+DB_PROVISIONER_PASS=${DB_PROVISIONER_PASS}
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 PANEL_PORT=${PANEL_PORT}
 ENV
+chmod 600 "${APEX_DIR}/config/.env"
 
 banner "Seeding initial data"
 DB_HOST=127.0.0.1 DB_USER="${DB_USER}" DB_PASS="${DB_PASS}" DB_NAME="${DB_NAME}" \

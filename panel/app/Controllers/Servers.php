@@ -5,8 +5,9 @@ use DB;
 
 class Servers {
     public function index() {
-        \require_login();
-        $servers = DB::all('SELECT s.*, n.name AS node_name FROM servers s JOIN nodes n ON n.id=s.node_id ORDER BY s.id DESC');
+        $u = \require_login();
+        [$where, $args] = \accessible_server_filter($u);
+        $servers = DB::all('SELECT s.*, n.name AS node_name FROM servers s JOIN nodes n ON n.id=s.node_id'.$where.' ORDER BY s.id DESC', $args);
         \view('servers/index', ['title'=>'Servers','servers'=>$servers]);
     }
     public function create() {
@@ -70,6 +71,8 @@ class Servers {
     }
     public function show(int $id) {
         \require_login();
+        \require_server_permission($id, 'view_server');
+        $u = \auth_user();
         $s = DB::one('SELECT s.*, n.name AS node_name, e.name AS egg_name,
                              ml.name AS loader_name, ml.category AS loader_category,
                              ml.accent_color AS loader_color, ml.logo_char AS loader_icon
@@ -79,12 +82,14 @@ class Servers {
                       LEFT JOIN mod_loaders ml ON ml.id=s.loader_id
                       WHERE s.id=?', [$id]);
         if (!$s) { http_response_code(404); \view('errors/404'); return; }
-        \view('servers/show', ['title'=>$s['name'],'s'=>$s]);
+        $allAccess = in_array($u['role'], ['admin','operator'], true) || (int)$s['owner_id'] === (int)$u['id'];
+        $access = $allAccess ? [] : (DB::one('SELECT * FROM server_access WHERE server_id=? AND user_id=?', [$id,$u['id']]) ?: []);
+        \view('servers/show', ['title'=>$s['name'],'s'=>$s,'can_control'=>$allAccess || !empty($access['control_server']),'can_view_console'=>$allAccess || !empty($access['view_console']),'can_view_files'=>$allAccess || !empty($access['view_files']),'can_view_backups'=>$allAccess || !empty($access['view_backups'])]);
     }
     public function action() {
         \check_csrf();
-        \require_role('operator');
         $id = (int)($_POST['id'] ?? 0);
+        \require_server_permission($id, 'control_server');
         $act = $_POST['action'] ?? '';
         $s = DB::one('SELECT * FROM servers WHERE id=?', [$id]);
         if (!$s) { \flash('error','Server not found.'); \redirect('/servers'); }
@@ -122,9 +127,10 @@ class Servers {
         \redirect('/servers');
     }
     public function apiList() {
-        \require_login();
+        $u = \require_login();
         // Live drift only for simulated (non-daemon-managed) online servers
-        $rows = DB::all('SELECT * FROM servers');
+        [$where, $args] = \accessible_server_filter($u);
+        $rows = DB::all('SELECT s.* FROM servers s'.$where, $args);
         foreach ($rows as $r) {
             if ($r['status'] === 'online') {
                 $cpu = max(2, min(95, (float)$r['cpu_usage'] + rand(-8,8)));
@@ -132,11 +138,12 @@ class Servers {
                 DB::q('UPDATE servers SET cpu_usage=?, ram_usage_mb=? WHERE id=?', [$cpu, $ram, $r['id']]);
             }
         }
-        \json_response(DB::all('SELECT id, name, game, status, cpu_usage, ram_usage_mb, ram_mb, players_online, players_max FROM servers'));
+        \json_response(DB::all('SELECT s.id, s.name, s.game, s.status, s.cpu_usage, s.ram_usage_mb, s.ram_mb, s.players_online, s.players_max FROM servers s'.$where, $args));
     }
     public function apiLogs() {
         \require_login();
         $id = (int)($_GET['id'] ?? 0);
+        \require_server_permission($id, 'view_console');
         $after = (int)($_GET['after'] ?? 0);
         $s = DB::one('SELECT * FROM servers WHERE id=?', [$id]);
         if (!$s) \json_response(['lines'=>[]]);
@@ -145,10 +152,10 @@ class Servers {
         \json_response(['lines'=>$logs]);
     }
     public function apiConsoleCmd() {
-        \require_role('operator');
         $body = json_decode(file_get_contents('php://input'), true) ?: [];
         if (!hash_equals($_SESSION['csrf'] ?? '', $_SERVER['HTTP_X_CSRF'] ?? '')) \json_response(['error'=>'csrf'],419);
         $id = (int)($body['id'] ?? 0);
+        \require_server_permission($id, 'control_server');
         $cmd = trim($body['cmd'] ?? '');
         if (!$id || !$cmd) \json_response(['error'=>'invalid']);
         // Send through daemon (which writes to process stdin)

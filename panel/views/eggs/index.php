@@ -10,13 +10,13 @@
 <?php if (($user['role'] ?? '') !== 'viewer'): ?>
 <div class="card" style="margin:16px 0">
   <div class="card-title"><h3>Import Pterodactyl egg JSON</h3></div>
-  <form method="post" action="/eggs/import" data-testid="pterodactyl-import-form">
+  <form method="post" action="/eggs/preview" data-testid="pterodactyl-import-form">
     <?= csrf_field() ?>
     <div class="form-group">
       <label>Egg JSON</label>
       <textarea name="egg_json" rows="8" placeholder='{"name":"Paper","startup":"java -jar server.jar","docker_images":{"java":"ghcr.io/pterodactyl/yolks:java_21"},"variables":[]}' required></textarea>
     </div>
-    <button class="btn btn-primary" data-testid="pterodactyl-import-submit">Import Egg</button>
+    <button class="btn btn-primary" data-testid="pterodactyl-import-submit">Review Import</button>
   </form>
 </div>
 <?php endif; ?>
