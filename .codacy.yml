@@ -1,0 +1,39 @@
+---
+# Codacy configuration file
+# Disable problematic tools that are generating invalid SARIF output
+
+exclude_paths:
+  - node_modules/
+  - vendor/
+  - dist/
+  - build/
+  - ".venv"
+  - venv/
+
+exclude_patterns:
+  - "^tests/"
+  - "^test/"
+  - "**/*.test.js"
+  - "**/*.spec.js"
+
+engines:
+  # Disable ESLint due to SARIF generation issues
+  eslint:
+    enabled: false
+  
+  # Disable PMD tools due to "No rules found" errors
+  pmd:
+    enabled: false
+  
+  pmd-legacy:
+    enabled: false
+
+  # Enable tools suitable for your tech stack
+  pylint:
+    enabled: true
+  
+  pylint-django:
+    enabled: false
+  
+  bandit:
+    enabled: true
