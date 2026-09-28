@@ -39,6 +39,7 @@
       <a href="/discord" class="<?= str_starts_with($current, '/discord') ? 'active':'' ?>" data-testid="nav-discord">◆ Discord Bot</a>
       <?php if (($user['role'] ?? '') === 'admin'): ?>
       <a href="/users" class="<?= str_starts_with($current, '/users') ? 'active':'' ?>" data-testid="nav-users">☰ Users</a>
+      <a href="/database-users" class="<?= str_starts_with($current, '/database-users') ? 'active':'' ?>" data-testid="nav-db-users">▣ DB Users</a>
       <?php endif; ?>
       <a href="/install" class="<?= str_starts_with($current, '/install') ? 'active':'' ?>" data-testid="nav-install">↓ Install Script</a>
     </nav>

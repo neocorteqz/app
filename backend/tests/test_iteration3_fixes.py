@@ -15,7 +15,7 @@ import pymysql
 import pytest
 import requests
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "https://server-fortress-1.preview.emergentagent.com"
+BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "http://127.0.0.1:3001"
 
 CSRF_RE = re.compile(r'name="_csrf"\s+value="([^"]+)"')
 META_CSRF_RE = re.compile(r'<meta\s+name="csrf"\s+content="([^"]+)"')
@@ -75,12 +75,15 @@ class TestStatusResetAfterInstall:
                                data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=240)
         assert r.status_code in (200, 302, 303), r.text[:400]
 
-        # brief settle time for post-install status update
-        time.sleep(2)
-
-        with db.cursor() as c:
-            c.execute("SELECT status, modpack_status FROM servers WHERE id=%s", (sid,))
-            row = c.fetchone()
+        deadline = time.time() + 60
+        row = None
+        while time.time() < deadline:
+            with db.cursor() as c:
+                c.execute("SELECT status, modpack_status FROM servers WHERE id=%s", (sid,))
+                row = c.fetchone()
+            if row["modpack_status"] in ("installed", "failed"):
+                break
+            time.sleep(1)
         assert row["modpack_status"] == "installed", row
         assert row["status"] == "offline", f"status stuck: {row}"
 

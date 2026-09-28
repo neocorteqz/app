@@ -15,7 +15,7 @@ import pymysql
 import pytest
 import requests
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://server-fortress-1.preview.emergentagent.com").rstrip("/")
+BASE = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:3001").rstrip("/")
 DAEMON = "http://127.0.0.1:8001"
 
 CSRF_RE = re.compile(r'name="_csrf"\s+value="([^"]+)"')
@@ -182,17 +182,25 @@ class TestModrinthInstallE2E:
         assert r.status_code in (302, 303)
         sid = int(re.search(r"/servers/(\d+)", r.headers["Location"]).group(1))
 
-        # Trigger manual install via panel (waits synchronously)
+        # Trigger manual install via panel; the daemon processes it asynchronously.
         r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
         csrf = _get_csrf(r.text)
         r = admin_session.post(f"{BASE}/servers/{sid}/modpack/install",
                               data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=180)
         assert r.status_code in (200, 302, 303), r.text[:400]
 
-        # verify DB
+        deadline = time.time() + 180
+        status = None
+        while time.time() < deadline:
+            with db.cursor() as c:
+                c.execute("SELECT modpack_status FROM servers WHERE id=%s", (sid,))
+                status = c.fetchone()["modpack_status"]
+            if status in ("installed", "failed"):
+                break
+            time.sleep(1)
+        assert status == "installed"
+
         with db.cursor() as c:
-            c.execute("SELECT modpack_status FROM servers WHERE id=%s", (sid,))
-            assert c.fetchone()["modpack_status"] == "installed"
             c.execute("SELECT line FROM server_logs WHERE server_id=%s", (sid,))
             log_lines = [r["line"] for r in c.fetchall()]
 

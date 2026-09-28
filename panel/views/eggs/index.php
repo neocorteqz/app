@@ -7,6 +7,20 @@
   </div>
 </div>
 
+<?php if (($user['role'] ?? '') !== 'viewer'): ?>
+<div class="card" style="margin:16px 0">
+  <div class="card-title"><h3>Import Pterodactyl egg JSON</h3></div>
+  <form method="post" action="/eggs/import" data-testid="pterodactyl-import-form">
+    <?= csrf_field() ?>
+    <div class="form-group">
+      <label>Egg JSON</label>
+      <textarea name="egg_json" rows="8" placeholder='{"name":"Paper","startup":"java -jar server.jar","docker_images":{"java":"ghcr.io/pterodactyl/yolks:java_21"},"variables":[]}' required></textarea>
+    </div>
+    <button class="btn btn-primary" data-testid="pterodactyl-import-submit">Import Egg</button>
+  </form>
+</div>
+<?php endif; ?>
+
 <div class="row" style="margin:14px 0" data-testid="egg-filters">
   <?php foreach ([['all','All'],['minecraft-java','Minecraft Java'],['minecraft-bedrock','Bedrock'],['cs2','CS2'],['rust','Rust']] as $f): ?>
     <a href="/eggs?game=<?= $f[0] ?>" class="chip <?= $filter === $f[0] ? 'accent' : '' ?>" data-testid="egg-filter-<?= $f[0] ?>" style="padding:8px 14px;text-decoration:none"><?= $f[1] ?></a>

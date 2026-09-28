@@ -72,6 +72,17 @@ CREATE TABLE IF NOT EXISTS settings (
     v TEXT
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS database_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(80) NOT NULL,
+    username VARCHAR(80) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    database_name VARCHAR(80) NOT NULL,
+    host VARCHAR(45) NOT NULL DEFAULT 'localhost',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_db_user (username, database_name)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS user_themes (
     user_id INT PRIMARY KEY,
     accent VARCHAR(16) DEFAULT '#00F0FF',

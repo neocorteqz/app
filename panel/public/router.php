@@ -40,6 +40,9 @@ $routes = [
     'GET /users'                   => ['App\\Controllers\\Users', 'index'],
     'POST /users'                  => ['App\\Controllers\\Users', 'store'],
     'POST /users/delete'           => ['App\\Controllers\\Users', 'delete'],
+    'GET /database-users'          => ['App\\Controllers\\DatabaseUsers', 'index'],
+    'POST /database-users'         => ['App\\Controllers\\DatabaseUsers', 'store'],
+    'POST /database-users/delete'  => ['App\\Controllers\\DatabaseUsers', 'delete'],
 
     'GET /theme'                   => ['App\\Controllers\\Theme', 'index'],
     'POST /theme'                  => ['App\\Controllers\\Theme', 'save'],
@@ -57,6 +60,7 @@ $routes = [
     'GET /service-worker.js'       => ['App\\Controllers\\Pwa', 'serviceWorker'],
 
     'GET /eggs'                    => ['App\\Controllers\\Eggs', 'index'],
+    'POST /eggs/import'            => ['App\\Controllers\\Eggs', 'import'],
     'GET /mods'                    => ['App\\Controllers\\Mods', 'index'],
     'GET /jobs'                    => ['App\\Controllers\\Jobs', 'index'],
     'GET /json/loaders'            => ['App\\Controllers\\Mods', 'apiForGame'],
@@ -75,6 +79,54 @@ if (preg_match('#^/jobs/(\d+)/cancel$#', $path, $m) && $method === 'POST') {
 if (preg_match('#^/json/servers/(\d+)/jobs$#', $path, $m) && $method === 'GET') {
     require_once __DIR__ . '/../app/Controllers/Jobs.php';
     (new App\Controllers\Jobs())->apiForServer((int)$m[1]); return true;
+}
+
+// Daemon API passthrough
+if (($path === '/api/daemon/health' || preg_match('#^/api/daemon/status/(\d+)$#', $path)) && $method === 'GET') {
+    $target = 'http://127.0.0.1:8001' . $path;
+    $ch = curl_init($target);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_HTTPHEADER => ['Accept: application/json'],
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code >= 200 && $code < 300) {
+        header('Content-Type: application/json');
+        echo $resp;
+        return true;
+    }
+    http_response_code($code ?: 502);
+    echo $resp ?: '{"error":"daemon_unreachable"}';
+    return true;
+}
+if (preg_match('#^/api/daemon/(start|stop|restart|console)/(\d+)$#', $path, $m) && in_array($method, ['POST','GET'], true)) {
+    $target = 'http://127.0.0.1:8001' . $path;
+    $body = null;
+    if ($method === 'POST' && $m[1] === 'console') {
+        $body = file_get_contents('php://input');
+    }
+    $ch = curl_init($target);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code >= 200 && $code < 300) {
+        header('Content-Type: application/json');
+        echo $resp;
+        return true;
+    }
+    http_response_code($code ?: 502);
+    echo $resp ?: '{"error":"daemon_unreachable"}';
+    return true;
 }
 
 // Mods dynamic

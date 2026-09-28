@@ -195,33 +195,83 @@ def _cf_resolve_slug_to_id(ref: str) -> int:
     return int(data["id"])
 
 
+def _cfwidget_pack(ref: str) -> dict:
+    """Public fallback for CurseForge preview metadata when the Core API is gated."""
+    if ref.isdigit():
+        r = requests.get(f"{CFWIDGET_API}/curseforge/mods/{int(ref)}", timeout=15)
+    else:
+        r = requests.get(f"{CFWIDGET_API}/minecraft/modpacks/{ref}", timeout=15)
+    if r.status_code == 404:
+        raise ResolveError(f"CurseForge modpack '{ref}' not found")
+    r.raise_for_status()
+    data = r.json()
+    if not data.get("id"):
+        raise ResolveError(f"unable to resolve CurseForge slug '{ref}'")
+    return data
+
+
+def _cfwidget_preview(ref: str, mod_id: int) -> dict:
+    widget = _cfwidget_pack(str(mod_id) if ref.isdigit() else ref)
+    files = widget.get("files") or []
+    newest = widget.get("download") or (files[0] if files else {})
+    project_url = (widget.get("urls") or {}).get("project")
+    slug = ref if not ref.isdigit() else project_url.rstrip("/").rsplit("/", 1)[-1] if project_url else str(mod_id)
+    downloads = widget.get("downloads", 0)
+    if isinstance(downloads, dict):
+        downloads = downloads.get("total", 0)
+    return {
+        "source": "curseforge",
+        "id": widget.get("id", mod_id),
+        "slug": slug,
+        "title": widget.get("title") or widget.get("name") or f"CurseForge {mod_id}",
+        "description": widget.get("summary", ""),
+        "downloads": downloads,
+        "authors": [m["username"] for m in widget.get("members", []) if m.get("username")],
+        "latest_file_id": newest.get("id") if isinstance(newest, dict) else None,
+        "latest_file_name": newest.get("name") if isinstance(newest, dict) else None,
+        "latest_mc": newest.get("versions", []) if isinstance(newest, dict) else [],
+        "url": project_url,
+    }
+
+
 def curseforge_preview(ref: str, api_key: str) -> dict:
-    """Look up a CurseForge modpack by slug or numeric ID."""
+    """Look up a CurseForge modpack by slug or numeric ID.
+
+    Prefer the official v1 API when available, but fall back to the public cfwidget
+    mirror in sandboxed environments where unauthed 403s are expected.
+    """
     mod_id: int
     if ref.isdigit():
         mod_id = int(ref)
     else:
         mod_id = _cf_resolve_slug_to_id(ref)
-    r = requests.get(f"{CURSEFORGE_API}/mods/{mod_id}", headers=_cf_headers(api_key), timeout=15)
-    if r.status_code == 404:
-        raise ResolveError(f"CurseForge mod id {mod_id} not found")
-    r.raise_for_status()
-    mod = r.json()["data"]
-    files_r = requests.get(f"{CURSEFORGE_API}/mods/{mod['id']}/files",
-                           headers=_cf_headers(api_key), timeout=15,
-                           params={"pageSize": 5}).json()
-    latest = files_r["data"][0] if files_r.get("data") else None
-    return {
-        "source": "curseforge",
-        "id": mod["id"], "slug": mod["slug"], "title": mod["name"],
-        "description": mod.get("summary", ""),
-        "downloads": mod.get("downloadCount", 0),
-        "authors": [a["name"] for a in mod.get("authors", [])],
-        "latest_file_id": latest["id"] if latest else None,
-        "latest_file_name": latest["fileName"] if latest else None,
-        "latest_mc": latest.get("gameVersions", []) if latest else [],
-        "url": mod.get("links", {}).get("websiteUrl"),
-    }
+    if not api_key:
+        return _cfwidget_preview(ref, mod_id)
+    try:
+        r = requests.get(f"{CURSEFORGE_API}/mods/{mod_id}", headers=_cf_headers(api_key), timeout=15)
+        if r.status_code == 404:
+            raise ResolveError(f"CurseForge mod id {mod_id} not found")
+        r.raise_for_status()
+        mod = r.json()["data"]
+        files_r = requests.get(f"{CURSEFORGE_API}/mods/{mod['id']}/files",
+                               headers=_cf_headers(api_key), timeout=15,
+                               params={"pageSize": 5})
+        files_r.raise_for_status()
+        files = files_r.json().get("data", [])
+        latest = files[0] if files else None
+        return {
+            "source": "curseforge",
+            "id": mod["id"], "slug": mod.get("slug") or str(mod_id), "title": mod["name"],
+            "description": mod.get("summary", ""),
+            "downloads": mod.get("downloadCount", 0),
+            "authors": [a["name"] for a in mod.get("authors", [])],
+            "latest_file_id": latest["id"] if latest else None,
+            "latest_file_name": latest["fileName"] if latest else None,
+            "latest_mc": latest.get("gameVersions", []) if latest else [],
+            "url": mod.get("links", {}).get("websiteUrl"),
+        }
+    except requests.RequestException:
+        return _cfwidget_preview(ref, mod_id)
 
 
 def _cf_download_url(mod_id: int, file_id: int, api_key: str) -> str:

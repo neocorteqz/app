@@ -13,8 +13,15 @@ function is_https_request(): bool {
     return false;
 }
 
+function is_local_request(): bool {
+    $host = strtolower($_SERVER['HTTP_HOST'] ?? '');
+    $remote = $_SERVER['REMOTE_ADDR'] ?? '';
+    return in_array($host, ['localhost', '127.0.0.1', '[::1]'], true)
+        || in_array($remote, ['127.0.0.1', '::1'], true);
+}
+
 function require_https(): void {
-    if (is_https_request()) {
+    if (is_https_request() || is_local_request()) {
         return;
     }
     $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';

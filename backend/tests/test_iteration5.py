@@ -14,7 +14,7 @@ import pymysql
 import pytest
 import requests
 
-BASE_URL = "https://69a53a13-fcf8-447b-9ea3-aa05080c4689.preview.emergentagent.com"
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "http://127.0.0.1:3001"
 DAEMON_URL = "http://127.0.0.1:8001"
 
 DB_CFG = dict(host="127.0.0.1", user="apexnode", password="apex_local_dev",

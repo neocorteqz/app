@@ -1,11 +1,12 @@
 """ApexNode Panel end-to-end backend tests (PHP panel + FastAPI daemon)."""
+import json
 import os
 import re
 import time
 import pytest
 import requests
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://server-fortress-1.preview.emergentagent.com").rstrip("/")
+BASE = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:3001").rstrip("/")
 
 CSRF_RE = re.compile(r'name="_csrf"\s+value="([^"]+)"')
 META_CSRF_RE = re.compile(r'<meta\s+name="csrf"\s+content="([^"]+)"')
@@ -168,6 +169,61 @@ class TestModsEggs:
         assert r.status_code == 200
         j = r.json()
         assert isinstance(j, list) and len(j) > 0
+
+    def test_database_user_create_flow(self, admin_session):
+        unique = int(time.time())
+        name = f"app_{unique}"
+        db_name = f"db_{unique}"
+        password = "StrongPass123!"
+
+        page = admin_session.get(f"{BASE}/database-users", verify=False)
+        assert page.status_code == 200
+        csrf = _get_csrf(page.text)
+
+        r = admin_session.post(
+            f"{BASE}/database-users",
+            data={
+                "_csrf": csrf,
+                "name": name,
+                "database_name": db_name,
+                "host": "localhost",
+                "password": password,
+            },
+            allow_redirects=False,
+            verify=False,
+        )
+        assert r.status_code in (200, 302, 303), r.status_code
+
+        follow = admin_session.get(f"{BASE}/database-users", verify=False)
+        assert follow.status_code == 200
+        assert name in follow.text or db_name in follow.text
+
+    def test_pterodactyl_egg_import_flow(self, admin_session):
+        unique = int(time.time())
+        egg_name = f"Ptero Test Egg {unique}"
+        payload = {
+            "name": egg_name,
+            "description": "Imported for regression testing",
+            "startup": "java -Xms128M -Xmx512M -jar server.jar nogui",
+            "docker_images": {"java": "ghcr.io/pterodactyl/yolks:java_21"},
+            "variables": [{"env_variable": "JAVA_VERSION", "default_value": "21"}],
+        }
+
+        page = admin_session.get(f"{BASE}/eggs", verify=False)
+        assert page.status_code == 200
+        csrf = _get_csrf(page.text)
+
+        r = admin_session.post(
+            f"{BASE}/eggs/import",
+            data={"_csrf": csrf, "egg_json": json.dumps(payload)},
+            allow_redirects=False,
+            verify=False,
+        )
+        assert r.status_code in (200, 302, 303), r.status_code
+
+        follow = admin_session.get(f"{BASE}/eggs", verify=False)
+        assert follow.status_code == 200
+        assert egg_name in follow.text
 
 
 # --- theme -----------------------------------------------------------------
