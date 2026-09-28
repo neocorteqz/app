@@ -3,7 +3,7 @@ namespace App\Controllers;
 use DB;
 
 /**
- * File Manager — real file system under /var/lib/apexnode/servers/{id}
+ * File Manager — real file system under the configured ApexNode state directory.
  * All operations are constrained to the server work_dir via realpath comparison.
  */
 class Files {
@@ -13,9 +13,10 @@ class Files {
         return $s;
     }
     private function base(array $s): string {
-        $base = $s['work_dir'] ?: ('/var/lib/apexnode/servers/' . (int)$s['id']);
+        $rootPath = \apex_state_root() . '/servers';
+        $base = $s['work_dir'] ?: ($rootPath . '/' . (int)$s['id']);
         if (!is_dir($base)) { @mkdir($base, 0755, true); }
-        $root = realpath('/var/lib/apexnode/servers');
+        $root = realpath($rootPath);
         $resolved = realpath($base);
         if (!$root || !$resolved || ($resolved !== $root && !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR))) {
             http_response_code(500);

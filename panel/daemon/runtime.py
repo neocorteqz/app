@@ -14,7 +14,9 @@ their own daemon at real assets on their production hosts by editing the loader
 """
 from __future__ import annotations
 import os
+import hashlib
 import shutil
+import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Callable
@@ -35,12 +37,18 @@ def _download(url: str, dst: Path, log: LogFn, label: str) -> None:
         shutil.copyfileobj(r, f)
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as jar_file:
+        for chunk in iter(lambda: jar_file.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _ensure_paper(work_dir: Path, log: LogFn, version: str = PAPER_VERSION) -> Path:
     """Download the newest Paper build for `version` that still resolves. The very
     latest build sometimes 404s on the CDN, so walk the list until one succeeds."""
     jar = work_dir / "server.jar"
-    if jar.exists():
-        return jar
     import json as _json
     req = urllib.request.Request(PAPER_BUILDS_API.format(ver=version),
                                  headers={"User-Agent": "ApexNode/1.0 (+https://apexnode.dev)"})
@@ -53,10 +61,33 @@ def _ensure_paper(work_dir: Path, log: LogFn, version: str = PAPER_VERSION) -> P
             dl = build["downloads"].get("server:default") or build["downloads"].get("server:mojang")
             if not dl:
                 continue
-            _download(dl["url"], jar, log, f"Paper {version} build {build['id']} ({dl['name']})")
+            expected = (dl.get("checksums") or {}).get("sha256")
+            if not expected or len(expected) != 64:
+                raise RuntimeError(f"Paper {version} build {build['id']} has no valid SHA256 checksum")
+            expected = expected.lower()
+            if jar.is_file() and _sha256(jar) == expected:
+                return jar
+
+            fd, temp_name = tempfile.mkstemp(prefix=".paper-", suffix=".jar", dir=work_dir)
+            os.close(fd)
+            temp_jar = Path(temp_name)
+            try:
+                _download(dl["url"], temp_jar, log, f"Paper {version} build {build['id']} ({dl['name']})")
+                actual = _sha256(temp_jar)
+                if actual != expected:
+                    raise RuntimeError(
+                        f"Paper {version} build {build['id']} SHA256 mismatch "
+                        f"(expected {expected}, received {actual})"
+                    )
+                os.replace(temp_jar, jar)
+            finally:
+                temp_jar.unlink(missing_ok=True)
             return jar
         except Exception as e:
             last_err = e
+            if isinstance(e, RuntimeError) and "SHA256 mismatch" in str(e):
+                log(f"[runtime] ! {e}", "error")
+                raise
             continue
     raise RuntimeError(f"could not download any Paper build: {last_err}")
 
@@ -69,9 +100,9 @@ def _ensure_purpur(work_dir: Path, log: LogFn, version: str = PAPER_VERSION) -> 
     return jar
 
 
-def _ensure_vanilla(work_dir: Path, log: LogFn) -> Path:
+def _ensure_vanilla(work_dir: Path, log: LogFn, version: str = PAPER_VERSION) -> Path:
     # Mojang requires a manifest hop; for the demo we reuse Paper's vanilla-compatible JAR
-    return _ensure_paper(work_dir, log)
+    return _ensure_paper(work_dir, log, version)
 
 
 def _write_eula(work_dir: Path) -> None:
@@ -93,22 +124,23 @@ def resolve(server: dict, loader: dict | None, log: LogFn) -> str:
     work_dir = Path(server["work_dir"] or f"/var/lib/apexnode/servers/{server['id']}")
     work_dir.mkdir(parents=True, exist_ok=True)
     ram = int(server.get("ram_mb") or 2048)
+    version = str(server.get("minecraft_version") or PAPER_VERSION)
 
     if game == "minecraft-java":
         loader_slug = (loader or {}).get("slug", "vanilla")
         if loader_slug in ("paper", "modrinth", "curseforge", "ftb", "matchzy"):
             # Modpacks and generic MC servers boot on Paper (mods/ directory drops in as plugins/mods)
-            _ensure_paper(work_dir, log)
+            _ensure_paper(work_dir, log, version)
         elif loader_slug == "purpur":
-            _ensure_purpur(work_dir, log)
+            _ensure_purpur(work_dir, log, version)
         elif loader_slug in ("forge", "neoforge", "fabric", "quilt"):
             # Real Forge/Fabric installers require Java to already be present and add extra
             # bootstrap complexity; for the demo we run Paper which is API-compatible with
             # Spigot plugins and boots the same mods/ folder produced by the resolver.
             log(f"[runtime] {loader_slug} → using Paper as the JVM host (demo)", "warn")
-            _ensure_paper(work_dir, log)
+            _ensure_paper(work_dir, log, version)
         else:  # vanilla or unknown
-            _ensure_vanilla(work_dir, log)
+            _ensure_vanilla(work_dir, log, version)
         _write_eula(work_dir)
         return _java_cmd(work_dir, ram)
 

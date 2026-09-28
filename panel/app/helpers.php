@@ -46,6 +46,11 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/DB.php';
 
+function apex_state_root(): string {
+    $config = require __DIR__ . '/../config/config.php';
+    return rtrim((string)($config['state_root'] ?? '/var/lib/apexnode'), '/');
+}
+
 function h(?string $s): string {
     return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8');
 }

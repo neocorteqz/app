@@ -154,6 +154,41 @@ class TestServers:
         assert r.status_code == 200
         assert "console" in r.text.lower()
 
+    def test_minecraft_version_picker_persists_selection(self, admin_session):
+        page = admin_session.get(f"{BASE}/servers/new", verify=False)
+        assert 'data-testid="minecraft-version-picker"' in page.text
+        csrf = _get_csrf(page.text)
+        node_id = re.search(r'<select name="node_id"[^>]*>\s*<option value="(\d+)"', page.text).group(1)
+        port = 30000 + int(time.time()) % 10000
+        response = admin_session.post(f"{BASE}/servers", data={
+            "_csrf": csrf, "name": f"VersionPin_{int(time.time())}",
+            "game": "minecraft-java", "minecraft_version": "1.21.7", "loader_id": "",
+            "node_id": node_id, "port": port, "cpu_limit": 2, "ram_mb": 2048, "disk_gb": 5,
+        }, allow_redirects=False, verify=False)
+        assert response.status_code in (302, 303)
+        detail = admin_session.get(f"{BASE}{response.headers['Location']}", verify=False)
+        assert "1.21.7" in detail.text
+
+    def test_public_join_page_and_live_status(self, admin_session):
+        detail = admin_session.get(f"{BASE}/servers/1", verify=False)
+        share_url = re.search(r'data-testid="server-share-url">([^<]+)</code>', detail.text)
+        assert share_url, "server share link missing"
+        token = re.search(r"/join/([a-f0-9]{48})$", share_url.group(1)).group(1)
+
+        public_page = requests.get(f"{BASE}/join/{token}", verify=False)
+        assert public_page.status_code == 200
+        assert 'data-testid="join-qr-code"' in public_page.text
+        assert 'data-testid="join-connect-address"' in public_page.text
+        assert "Survival SMP" in public_page.text
+
+        status = requests.get(f"{BASE}/api/public/join/{token}", verify=False)
+        assert status.status_code == 200
+        data = status.json()
+        assert data["name"] == "Survival SMP"
+        assert data["address"].endswith(":25565")
+        assert data["status"]
+        assert requests.get(f"{BASE}/join/" + "0" * 48, verify=False).status_code == 404
+
 
 # --- daemon bridge ---------------------------------------------------------
 class TestDaemon:

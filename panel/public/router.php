@@ -8,6 +8,17 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $path = rtrim($path, '/') ?: '/';
 $method = $_SERVER['REQUEST_METHOD'];
 
+if (preg_match('#^/join/([a-f0-9]{48})$#', $path, $m) && $method === 'GET') {
+    require_once __DIR__ . '/../app/Controllers/PublicJoin.php';
+    (new App\Controllers\PublicJoin())->show($m[1]);
+    return true;
+}
+if (preg_match('#^/api/public/join/([a-f0-9]{48})$#', $path, $m) && $method === 'GET') {
+    require_once __DIR__ . '/../app/Controllers/PublicJoin.php';
+    (new App\Controllers\PublicJoin())->status($m[1]);
+    return true;
+}
+
 // Serve static files directly through built-in server (except dynamic routes)
 $dynamic_paths = ['/theme.css', '/service-worker.js', '/manifest.webmanifest', '/install.sh', '/install-daemon.sh'];
 if (!in_array($path, $dynamic_paths) && preg_match('#\.(css|js|png|jpg|jpeg|svg|ico|webp|woff2?)$#i', $path)) {

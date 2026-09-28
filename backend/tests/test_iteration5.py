@@ -9,6 +9,12 @@ Also regression: /dashboard, /servers, /jobs, /json/modpack/preview still fine.
 """
 import os
 import re
+import asyncio
+import hashlib
+import importlib.util
+import io
+import json
+import sys
 import time
 import pymysql
 import pytest
@@ -67,7 +73,8 @@ class TestInstaller:
         r = session.get(f"{BASE_URL}/install")
         assert r.status_code == 200
         for tid in ["host-picker", "host-mode-standalone", "host-mode-cpanel",
-                    "host-mode-plesk", "host-mode-directadmin", "host-mode-nginx",
+                    "host-mode-plesk", "host-mode-directadmin", "host-mode-apache",
+                    "host-mode-nginx", "host-mode-caddy", "host-mode-other",
                     "input-panel-port", "install-cmd", "reverse-proxy-snippet",
                     "copy-install-btn"]:
             assert f'data-testid="{tid}"' in r.text, f"missing testid: {tid}"
@@ -78,8 +85,17 @@ class TestInstaller:
         body = r.text
         assert "--coexist" in body
         assert "--port" in body
-        for mode in ["standalone", "cpanel", "plesk", "directadmin", "nginx"]:
+        assert "--install-dir" in body
+        assert "--data-dir" in body
+        assert "--plugin-dir" in body
+        assert "--interactive" in body
+        assert "--web-server" in body
+        assert "apt-get" in body and "dnf" in body
+        for mode in ["standalone", "apache", "cpanel", "plesk", "directadmin", "nginx", "caddy", "other"]:
             assert mode in body, f"coexist mode {mode} missing from install.sh"
+            if mode != "standalone":
+                helper = f"/app/panel/install/integrations/{mode}/install.sh"
+                assert os.path.isfile(helper), f"integration helper missing: {mode}"
         # verifies loopback binding for coexist mode
         assert "127.0.0.1:" in body
 
@@ -95,6 +111,62 @@ class TestInstaller:
 # ---------- Feature 2: Real loader runtime (runtime.py) ----------
 
 class TestRuntimeResolver:
+    def test_paper_checksum_mismatch_is_rejected(self, tmp_path, monkeypatch):
+        sys.path.insert(0, "/app/panel/daemon")
+        import runtime
+
+        expected = hashlib.sha256(b"official-paper-jar").hexdigest()
+        metadata = [{"id": 1, "downloads": {"server:default": {
+            "name": "paper.jar", "url": "https://paper.invalid/paper.jar",
+            "checksums": {"sha256": expected},
+        }}}]
+        monkeypatch.setattr(runtime.urllib.request, "urlopen", lambda *args, **kwargs: io.BytesIO(json.dumps(metadata).encode()))
+        monkeypatch.setattr(runtime, "_download", lambda url, dst, log, label: dst.write_bytes(b"tampered-jar"))
+
+        with pytest.raises(RuntimeError, match="SHA256 mismatch"):
+            runtime._ensure_paper(tmp_path, lambda line, level: None, "1.21.7")
+        assert not (tmp_path / "server.jar").exists()
+        assert not list(tmp_path.glob(".paper-*.jar"))
+
+    def test_selected_minecraft_version_reaches_paper_resolver(self, tmp_path, monkeypatch):
+        sys.path.insert(0, "/app/panel/daemon")
+        import runtime
+
+        selected = []
+        monkeypatch.setattr(runtime, "_ensure_paper", lambda work_dir, log, version: selected.append(version) or tmp_path / "server.jar")
+        monkeypatch.setattr(runtime, "_write_eula", lambda work_dir: None)
+        monkeypatch.setattr(runtime, "_java_cmd", lambda work_dir, ram: "java -jar server.jar nogui")
+        runtime.resolve({"id": 77, "game": "minecraft-java", "work_dir": str(tmp_path), "minecraft_version": "1.21.7"},
+                        {"slug": "paper"}, lambda line, level: None)
+        assert selected == ["1.21.7"]
+
+    def test_bootstrap_failure_marks_crashed_without_demo_process(self, tmp_path, monkeypatch):
+        daemon_path = "/app/panel/daemon/daemon.py"
+        spec = importlib.util.spec_from_file_location("apexnode_daemon_test", daemon_path)
+        daemon_app = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = daemon_app
+        spec.loader.exec_module(daemon_app)
+        server = {"id": 700001, "game": "minecraft-java", "work_dir": str(tmp_path),
+                  "ram_mb": 2048, "loader_id": 1, "egg_id": None, "status": "offline"}
+        statuses = []
+        log_lines = []
+        monkeypatch.setattr(daemon_app, "get_server", lambda sid: server)
+        monkeypatch.setattr(daemon_app, "ensure_workdir", lambda row: tmp_path)
+        monkeypatch.setattr(daemon_app, "install_modpack_if_needed", lambda row: None)
+        monkeypatch.setattr(daemon_app, "get_loader", lambda loader_id: {"slug": "paper"})
+        monkeypatch.setattr(daemon_app, "get_egg", lambda egg_id: None)
+        monkeypatch.setattr(daemon_app, "build_start_cmd", lambda row, egg: (_ for _ in ()).throw(RuntimeError("Paper CDN unavailable")))
+        monkeypatch.setattr(daemon_app, "set_status", lambda sid, status, **fields: statuses.append(status))
+        monkeypatch.setattr(daemon_app, "log_line", lambda sid, line, level="info": log_lines.append((line, level)))
+        monkeypatch.setattr(daemon_app.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("process must not start"))
+
+        with pytest.raises(daemon_app.HTTPException) as exc:
+            asyncio.run(daemon_app.start(server["id"]))
+        assert exc.value.status_code == 500
+        assert "loader bootstrap failed" in exc.value.detail
+        assert "crashed" in statuses
+        assert any("loader bootstrap failed" in line for line, level in log_lines)
+
     def test_runtime_module_resolves_paper_command(self):
         """Import runtime.py and call resolve() with a fake server row.
         Paper CDN may 403 in sandbox — we accept either a successful download

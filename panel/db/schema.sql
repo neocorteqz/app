@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS servers (
     status ENUM('online','offline','starting','stopping','installing','crashed') NOT NULL DEFAULT 'offline',
     startup_command VARCHAR(255) DEFAULT '',
     version VARCHAR(32) DEFAULT 'latest',
+    minecraft_version VARCHAR(16) NOT NULL DEFAULT '1.20.4',
+    share_token CHAR(48) DEFAULT NULL UNIQUE,
     players_online INT DEFAULT 0,
     players_max INT DEFAULT 20,
     cpu_usage FLOAT DEFAULT 0,

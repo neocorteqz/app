@@ -28,6 +28,7 @@ class Servers {
         $loader = $loader_id ? DB::one('SELECT * FROM mod_loaders WHERE id=?', [$loader_id]) : null;
         $modpack_ref = trim($_POST['modpack_ref'] ?? '');
         $game = $egg ? $egg['game'] : ($loader ? $loader['game'] : ($_POST['game'] ?? ''));
+        $minecraft_version = trim((string)($_POST['minecraft_version'] ?? '1.20.4'));
         $node_id = (int)($_POST['node_id'] ?? 0);
         $port = (int)($_POST['port'] ?? 25565);
         $cpu = (int)($_POST['cpu_limit'] ?? 2);
@@ -35,6 +36,9 @@ class Servers {
         $disk = (int)($_POST['disk_gb'] ?? 10);
         if (!$name || !in_array($game, ['minecraft-java','minecraft-bedrock','cs2','rust']) || !$node_id) {
             \flash('error','Missing required fields.'); \redirect('/servers/new');
+        }
+        if ($game === 'minecraft-java' && !preg_match('/^\d+\.\d+(?:\.\d+)?$/', $minecraft_version)) {
+            \flash('error','Choose a valid Minecraft release version.'); \redirect('/servers/new');
         }
         if ($loader && $loader['requires_pack_id'] && !$modpack_ref) {
             \flash('error','This installer requires a modpack slug/ID.');
@@ -45,6 +49,7 @@ class Servers {
             'loader_id' => $loader ? $loader['id'] : null,
             'modpack_ref' => $modpack_ref ?: null,
             'modpack_status' => ($loader && $loader['category']==='modpack_source' && $modpack_ref) ? 'pending' : 'none',
+            'minecraft_version' => $minecraft_version,
             'node_id'=>$node_id,'owner_id'=>$u['id'],
             'port'=>$port,'cpu_limit'=>$cpu,'ram_mb'=>$ram,'disk_gb'=>$disk,
             'status'=>'installing','version'=>$egg ? $egg['name'] : ($loader ? $loader['name'] : 'latest'),
@@ -84,6 +89,12 @@ class Servers {
         if (!$s) { http_response_code(404); \view('errors/404'); return; }
         $allAccess = in_array($u['role'], ['admin','operator'], true) || (int)$s['owner_id'] === (int)$u['id'];
         $access = $allAccess ? [] : (DB::one('SELECT * FROM server_access WHERE server_id=? AND user_id=?', [$id,$u['id']]) ?: []);
+        if (empty($s['share_token'])) {
+            $s['share_token'] = bin2hex(random_bytes(24));
+            DB::q('UPDATE servers SET share_token=? WHERE id=? AND share_token IS NULL', [$s['share_token'], $id]);
+            $savedToken = DB::one('SELECT share_token FROM servers WHERE id=?', [$id]);
+            $s['share_token'] = $savedToken['share_token'] ?? $s['share_token'];
+        }
         \view('servers/show', ['title'=>$s['name'],'s'=>$s,'can_control'=>$allAccess || !empty($access['control_server']),'can_view_console'=>$allAccess || !empty($access['view_console']),'can_view_files'=>$allAccess || !empty($access['view_files']),'can_view_backups'=>$allAccess || !empty($access['view_backups'])]);
     }
     public function action() {
@@ -106,6 +117,10 @@ class Servers {
         curl_close($ch);
         if ($code >= 200 && $code < 300) {
             \flash('success', ucfirst($act).' dispatched to daemon.');
+        } elseif (in_array($act, ['start','restart'], true) && str_contains((string)$resp, 'loader bootstrap failed')) {
+            DB::q('UPDATE servers SET status="crashed" WHERE id=?', [$id]);
+            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, '[runtime] loader bootstrap failed; server start aborted', 'error']);
+            \flash('error','Loader bootstrap failed. Check the server logs for details.');
         } else {
             // Fallback if daemon unreachable — update DB directly
             $map = ['start'=>'online','stop'=>'offline','restart'=>'online','kill'=>'offline'];

@@ -85,9 +85,10 @@ class Backups {
     public function runNow(int $id) {
         \check_csrf(); \require_server_permission($id, 'manage_backups');
         $s = $this->server($id);
-        $wd = $s['work_dir'] ?: "/var/lib/apexnode/servers/$id";
+        $stateRoot = \apex_state_root();
+        $wd = $s['work_dir'] ?: "$stateRoot/servers/$id";
         if (!is_dir($wd)) @mkdir($wd, 0755, true);
-        $out_dir = "/var/lib/apexnode/backups/$id";
+        $out_dir = "$stateRoot/backups/$id";
         @mkdir($out_dir, 0755, true);
         $stamp = date('Ymd-His');
         $name = "backup-{$stamp}.tar.gz";
@@ -132,7 +133,8 @@ class Backups {
         }
         $bid = (int)($_POST['backup_id'] ?? 0);
         $b = DB::one('SELECT * FROM backups WHERE id=? AND server_id=?', [$bid, $id]);
-        $backupRoot = realpath("/var/lib/apexnode/backups/$id");
+        $stateRoot = \apex_state_root();
+        $backupRoot = realpath("$stateRoot/backups/$id");
         $archive = $b && $b['storage'] === 'local' ? realpath($b['path']) : false;
         if (!$b || !$backupRoot || !$archive || !str_starts_with($archive, $backupRoot . DIRECTORY_SEPARATOR) || !is_file($archive)) {
             \flash('error','Local backup is missing or outside the server backup directory.');
@@ -142,8 +144,8 @@ class Backups {
             \flash('error',$problem);
             \redirect("/servers/$id/backups");
         }
-        $wd = $s['work_dir'] ?: "/var/lib/apexnode/servers/$id";
-        $serversRoot = realpath('/var/lib/apexnode/servers');
+        $wd = $s['work_dir'] ?: "$stateRoot/servers/$id";
+        $serversRoot = realpath("$stateRoot/servers");
         $parent = dirname($wd);
         if (!$serversRoot || !str_starts_with($wd, $serversRoot . DIRECTORY_SEPARATOR) || $wd === $serversRoot) {
             \flash('error','Server working directory is outside the managed server root.');

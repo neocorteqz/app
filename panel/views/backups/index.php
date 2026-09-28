@@ -10,7 +10,7 @@ function fmt_bytes2($b) {
   <div>
     <div class="section-title" style="margin:0">Backups · <?= h($s['name']) ?></div>
     <h1 data-testid="page-title">Backups & Restore</h1>
-    <p class="muted">Snapshot the server working dir. Optional S3-compatible remote storage.</p>
+    <p class="muted">Snapshot the server working dir. Local snapshots are stored in <?= h(apex_state_root()) ?>/backups. Optional S3-compatible remote storage.</p>
   </div>
   <div class="row">
     <a href="/servers/<?= (int)$s['id'] ?>" class="btn">← Console</a>
@@ -41,7 +41,7 @@ function fmt_bytes2($b) {
     <div class="form-group">
       <label>Storage</label>
       <select name="storage" data-testid="schedule-storage">
-        <option value="local" <?= ($sched['storage'] ?? 'local')==='local'?'selected':''?>>Local disk (/var/lib/apexnode/backups)</option>
+        <option value="local" <?= ($sched['storage'] ?? 'local')==='local'?'selected':''?>>Local disk (<?= h(apex_state_root()) ?>/backups)</option>
         <option value="s3" <?= ($sched['storage'] ?? '')==='s3'?'selected':''?>>S3-compatible remote (Backblaze B2, AWS S3, Wasabi)</option>
       </select>
     </div>

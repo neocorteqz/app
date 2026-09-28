@@ -19,6 +19,23 @@
   </div>
 </div>
 
+<?php
+$scheme = is_https_request() ? 'https' : 'http';
+$requestHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+if (!preg_match('/^[A-Za-z0-9.:[\]-]+$/', $requestHost)) $requestHost = 'localhost';
+$publicJoinUrl = $scheme . '://' . $requestHost . '/join/' . h($s['share_token']);
+?>
+<div class="card" style="margin-top:14px" data-testid="server-share-panel">
+  <div class="between">
+    <div><div class="section-title" style="margin:0">Share</div><h2>Public join page</h2></div>
+    <a class="btn btn-primary" href="<?= h($publicJoinUrl) ?>" target="_blank" rel="noopener" data-testid="server-share-link">↗ Open join page</a>
+  </div>
+  <div class="between" style="margin-top:10px;gap:8px">
+    <code class="mono" data-testid="server-share-url"><?= h($publicJoinUrl) ?></code>
+    <button type="button" class="btn btn-sm" data-copy-value="<?= h($publicJoinUrl) ?>" aria-label="Copy public join link" title="Copy public join link">▣</button>
+  </div>
+</div>
+
 <div class="bento" style="margin-top:16px">
   <div class="card span-3" id="jobs-panel" data-server-id="<?= (int)$s['id'] ?>" data-testid="server-jobs-panel" style="display:none">
     <div class="card-title"><h3>◐ Active Jobs</h3><a href="/jobs" class="btn btn-sm">All Jobs →</a></div>
@@ -51,6 +68,7 @@
     <div class="section-title">Configuration</div>
     <table class="table">
       <tr><td class="muted">Version</td><td class="mono"><?= h($s['version']) ?></td></tr>
+      <?php if ($s['game'] === 'minecraft-java'): ?><tr><td class="muted">Minecraft</td><td class="mono"><?= h($s['minecraft_version']) ?></td></tr><?php endif; ?>
       <?php if (!empty($s['loader_name'])): ?>
         <tr><td class="muted">Loader</td>
             <td><span class="chip" style="color:<?= h($s['loader_color']) ?>;border-color:<?= h($s['loader_color']) ?>"><?= h($s['loader_icon']) ?> <?= h($s['loader_name']) ?></span></td></tr>

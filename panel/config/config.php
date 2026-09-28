@@ -16,6 +16,7 @@ return [
         'user' => $setting('DB_PROVISIONER_USER'),
         'pass' => $setting('DB_PROVISIONER_PASS'),
     ],
+    'state_root' => rtrim($setting('APEX_STATE', '/var/lib/apexnode'), '/'),
     'redis' => [
         'host' => $setting('REDIS_HOST', '127.0.0.1'),
         'port' => (int)$setting('REDIS_PORT', '6379'),

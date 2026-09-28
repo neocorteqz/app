@@ -8,8 +8,10 @@
  * Runs continuously with a 30s sleep; managed by supervisor.
  */
 require_once __DIR__ . '/../app/DB.php';
+$config = require __DIR__ . '/../config/config.php';
+$STATE_ROOT = rtrim((string)($config['state_root'] ?? '/var/lib/apexnode'), '/');
 
-$BACKUP_ROOT = '/var/lib/apexnode/backups';
+$BACKUP_ROOT = $STATE_ROOT . '/backups';
 @mkdir($BACKUP_ROOT, 0755, true);
 
 function log_line(string $sid, string $line, string $level = 'system'): void {
@@ -17,9 +19,9 @@ function log_line(string $sid, string $line, string $level = 'system'): void {
 }
 
 function run_backup(array $schedule, array $server): void {
-    global $BACKUP_ROOT;
+    global $BACKUP_ROOT, $STATE_ROOT;
     $sid = (int)$server['id'];
-    $wd = $server['work_dir'] ?: "/var/lib/apexnode/servers/$sid";
+    $wd = $server['work_dir'] ?: "$STATE_ROOT/servers/$sid";
     if (!is_dir($wd)) { @mkdir($wd, 0755, true); }
     $stamp = date('Ymd-His');
     $name = "backup-{$stamp}.tar.gz";

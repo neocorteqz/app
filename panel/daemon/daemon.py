@@ -259,11 +259,7 @@ def build_start_cmd(server, egg) -> str:
     """Delegate to runtime.py which knows how to spin up Paper/Purpur/Fabric etc.
     For non-Java games or unknown combos, runtime.py returns the fake_game.py fallback."""
     loader = get_loader(server.get("loader_id"))
-    try:
-        return loader_runtime.resolve(server, loader, lambda l, lv: log_line(server["id"], l, lv))
-    except Exception as e:
-        log_line(server["id"], f"[runtime] bootstrap failed ({e}); falling back to fake game", "warn")
-        return f"python3 -u /app/panel/daemon/fake_game.py {server['game']}"
+    return loader_runtime.resolve(server, loader, lambda l, lv: log_line(server["id"], l, lv))
 
 
 class ConsoleIn(BaseModel):
@@ -287,7 +283,12 @@ async def start(sid: int):
     # Re-fetch to pick up any updated fields
     s = get_server(sid)
     egg = get_egg(s.get("egg_id"))
-    cmd = build_start_cmd(s, egg)
+    try:
+        cmd = build_start_cmd(s, egg)
+    except Exception as e:
+        set_status(sid, "crashed")
+        log_line(sid, f"[runtime] loader bootstrap failed: {e}", "error")
+        raise HTTPException(500, f"loader bootstrap failed: {e}")
     log_line(sid, f"[daemon] boot: {cmd}", "system")
     set_status(sid, "starting")
 

@@ -41,6 +41,20 @@
     </div>
   </div>
 
+  <div class="form-group" id="minecraft-version-wrap" data-testid="minecraft-version-wrap">
+    <label for="minecraft-version">Minecraft Java version</label>
+    <select name="minecraft_version" id="minecraft-version" data-testid="minecraft-version-picker">
+      <option value="1.21.8">1.21.8</option>
+      <option value="1.21.7">1.21.7</option>
+      <option value="1.21.6">1.21.6</option>
+      <option value="1.21.5">1.21.5</option>
+      <option value="1.21.4">1.21.4</option>
+      <option value="1.20.6">1.20.6</option>
+      <option value="1.20.4">1.20.4</option>
+    </select>
+    <span class="mono muted" id="minecraft-version-source" aria-live="polite">Available releases are refreshed from Mojang when online.</span>
+  </div>
+
   <div class="section-title">4. Server Installation (loader / modpack)</div>
   <p class="mono muted" style="margin-top:-6px">Choose vanilla, a loader (Paper, Forge, Fabric…), or a modpack source (CurseForge, Modrinth). Leave "None" to install the raw egg.</p>
   <div class="row" id="loader-picker" data-testid="loader-picker" style="gap:8px;margin-bottom:8px"></div>
@@ -68,12 +82,38 @@
 <script>
 (function () {
   const gameSel = document.getElementById('game-select');
+  const versionWrap = document.getElementById('minecraft-version-wrap');
+  const versionSelect = document.getElementById('minecraft-version');
   const picker = document.getElementById('loader-picker');
   const loaderInput = document.getElementById('loader-input');
   const packWrap = document.getElementById('modpack-ref-wrap');
   const packInput = document.getElementById('modpack-ref');
   const preview = document.getElementById('modpack-preview');
   let currentSource = null;
+
+  function syncVersionVisibility() {
+    versionWrap.hidden = gameSel.value !== 'minecraft-java';
+    versionSelect.required = gameSel.value === 'minecraft-java';
+  }
+
+  async function loadMinecraftVersions() {
+    try {
+      const response = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json', { cache: 'no-cache' });
+      if (!response.ok) return;
+      const manifest = await response.json();
+      const releases = manifest.versions.filter(version => version.type === 'release').slice(0, 24);
+      if (!releases.length) return;
+      const selected = versionSelect.value;
+      versionSelect.replaceChildren(...releases.map(version => {
+        const option = document.createElement('option');
+        option.value = version.id;
+        option.textContent = version.id;
+        return option;
+      }));
+      versionSelect.value = releases.some(version => version.id === selected) ? selected : manifest.latest.release;
+      document.getElementById('minecraft-version-source').textContent = 'Release list provided by Mojang.';
+    } catch (_) {}
+  }
 
   async function refresh() {
     const game = gameSel.value;
@@ -162,6 +202,9 @@
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   gameSel.addEventListener('change', refresh);
+  gameSel.addEventListener('change', syncVersionVisibility);
+  syncVersionVisibility();
+  loadMinecraftVersions();
   refresh();
 })();
 </script>

@@ -1,15 +1,18 @@
-<div class="between"><div><div class="section-title" style="margin:0">Deployment</div><h1 data-testid="page-title">Install on Linux Server</h1><p class="muted">One-line install for Ubuntu 22.04+ / Debian 12+. Standalone, or co-existing with cPanel / Plesk / DirectAdmin.</p></div></div>
+<div class="between"><div><div class="section-title" style="margin:0">Deployment</div><h1 data-testid="page-title">Install on Linux Server</h1><p class="muted">Install on a bare server or behind cPanel, DirectAdmin, Plesk, or an existing Nginx host.</p></div></div>
 
 <div class="grid-2" style="margin-top:16px">
   <div class="card">
-    <div class="section-title" style="margin-top:0">1. Choose your host layout</div>
+    <div class="section-title" style="margin-top:0">1. Choose your web server</div>
     <div class="row" id="host-picker" data-testid="host-picker" style="flex-wrap:wrap">
       <?php $modes = [
-        ['standalone',   'Standalone',  'No existing panel — bind Nginx to :80'],
-        ['cpanel',       'cPanel',      'Reverse-proxied from WHM Pre-VirtualHost'],
-        ['plesk',        'Plesk',       'Apache & nginx settings → proxy_pass'],
-        ['directadmin',  'DirectAdmin', 'CustomBuild custom_httpd.conf snippet'],
-        ['nginx',        'Nginx (any)', 'Generic reverse-proxy vhost'],
+        ['standalone',   'Standalone',  'New bare server; installer manages Nginx'],
+        ['apache',       'Apache',      'Existing Apache / httpd server'],
+        ['nginx',        'Nginx',       'Existing Nginx reverse proxy'],
+        ['caddy',        'Caddy',       'Existing Caddy server; automatic HTTPS'],
+        ['cpanel',       'cPanel',      'Installs cPanel Apache vhost includes'],
+        ['directadmin',  'DirectAdmin', 'Installs a per-domain CustomBuild include'],
+        ['plesk',        'Plesk',       'Installs a per-domain Nginx proxy include'],
+        ['other',        'Other',       'Keep server config untouched; show manual proxy steps'],
       ]; foreach ($modes as $m): ?>
         <label class="chip" data-mode="<?= $m[0] ?>" style="padding:10px 14px;cursor:pointer;flex:1;min-width:150px;text-align:center" data-testid="host-mode-<?= $m[0] ?>">
           <input type="radio" name="mode" value="<?= $m[0] ?>" <?= $m[0]==='standalone'?'checked':''?> style="margin-right:6px">
@@ -22,26 +25,34 @@
     <div class="section-title">2. Pick a port</div>
     <div class="form-group">
       <label>Panel port</label>
-      <input type="number" id="panel-port" value="8443" min="1024" max="65535" data-testid="input-panel-port">
-      <p class="mono muted" style="margin-top:6px">Standalone mode binds public. Coexist modes bind 127.0.0.1 only — set anything free (e.g. 8443, 2087, 8880).</p>
+      <input type="number" id="panel-port" value="80" min="1" max="65535" data-testid="input-panel-port">
+      <p class="mono muted" style="margin-top:6px">Standalone binds publicly. Existing-panel modes bind to 127.0.0.1 only; the selected integration helper configures the reverse proxy.</p>
     </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Panel domain (optional)</label><input id="panel-domain" placeholder="panel.example.com" data-testid="input-panel-domain"></div>
+      <div class="form-group"><label>cPanel / DirectAdmin account</label><input id="panel-user" placeholder="account name" data-testid="input-panel-user"><p class="mono muted">Required with a domain for cPanel or DirectAdmin integration.</p></div>
+    </div>
+    <div class="section-title">3. Installation locations</div>
+    <div class="form-group"><label>Application directory</label><input id="install-dir" value="/opt/apexnode" data-testid="input-install-dir"></div>
+    <div class="form-group"><label>Server data and backups directory</label><input id="data-dir" value="/var/lib/apexnode" data-testid="input-data-dir"></div>
+    <div class="form-group"><label>Panel integration scripts directory</label><input id="plugin-dir" value="/opt/apexnode-integrations" data-testid="input-plugin-dir"></div>
 
-    <div class="section-title">3. One-liner</div>
+    <div class="section-title">4. One-liner</div>
     <pre class="mono" style="background:#05070c;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto" data-testid="install-cmd">curl -fsSL https://<?= h($host) ?>/install.sh | sudo bash -s -- --port 8443 --coexist standalone</pre>
     <button class="btn btn-primary btn-sm" data-testid="copy-install-btn" onclick="navigator.clipboard.writeText(document.querySelector('[data-testid=install-cmd]').textContent)">⧉ Copy</button>
 
-    <div class="section-title">4. Node daemon (game hosts)</div>
+    <div class="section-title">5. Node daemon (game hosts)</div>
     <pre class="mono" style="background:#05070c;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto">curl -fsSL https://<?= h($host) ?>/install-daemon.sh | sudo bash</pre>
   </div>
 
   <div class="card">
     <div class="section-title" style="margin-top:0">Reverse-proxy snippet</div>
-    <p class="muted" data-testid="snippet-intro">The exact block to paste into your existing panel:</p>
+    <p class="muted" data-testid="snippet-intro">The installer detects an active web server when run directly. Choose the matching option here; its helper validates or updates only its own ApexNode configuration. Supply a domain above to configure it automatically:</p>
     <pre class="mono" id="snippet" data-testid="reverse-proxy-snippet" style="background:#05070c;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto;font-size:11px;white-space:pre-wrap"></pre>
 
     <div class="section-title">What gets installed</div>
     <ul class="mono muted" style="padding-left:18px;font-size:12px">
-      <li>Nginx + PHP-FPM (loopback in coexist mode)</li>
+      <li>Nginx + PHP-FPM only in standalone mode; Apache, Nginx, Caddy, and hosted-panel modes preserve the existing web server</li>
       <li>MariaDB (auto-provisioned DB user & schema)</li>
       <li>Redis (session + cache)</li>
       <li>OpenJDK 17 JRE (for Paper / Purpur / Forge runtimes)</li>
@@ -63,57 +74,45 @@
   const cmd = document.querySelector('[data-testid=install-cmd]');
   const snippet = document.getElementById('snippet');
   const host = '<?= h($host) ?>';
+  const domain = document.getElementById('panel-domain');
+  const panelUser = document.getElementById('panel-user');
+  const installDir = document.getElementById('install-dir');
+  const dataDir = document.getElementById('data-dir');
+  const pluginDir = document.getElementById('plugin-dir');
+  let portWasEdited = false;
 
   const templates = {
     standalone: () => 'Standalone mode — the installer configures Nginx as the public webserver on the port you chose. No control-panel integration needed.',
-    cpanel: (p) => `# WHM → Home » Service Configuration » Apache Configuration » Include Editor » Pre VirtualHost (2.4)
-
-<VirtualHost *:80>
-    ServerName apex.yourdomain.tld
-    ProxyPreserveHost On
-    ProxyPass / http://127.0.0.1:${p}/
-    ProxyPassReverse / http://127.0.0.1:${p}/
-</VirtualHost>
-
-# Then: systemctl reload httpd`,
-    plesk: (p) => `# Plesk → Domains → apex.yourdomain.tld → Apache & nginx Settings
-# Paste this in the "Additional nginx directives" box (also uncheck "Proxy mode"):
-
-location / {
-    proxy_pass http://127.0.0.1:${p};
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-}`,
-    directadmin: (p) => `# 1. In DirectAdmin: create subdomain apex.yourdomain.tld
-# 2. Edit /usr/local/directadmin/data/users/USER/domains/DOMAIN.custom_httpd.conf
-
-|?PROXY=http://127.0.0.1:${p}|
-|?VHOST=apex.yourdomain.tld|
-
-# 3. cd /usr/local/directadmin/custombuild && ./build rewrite_confs`,
-    nginx: (p) => `# /etc/nginx/conf.d/apex.conf on your existing web-panel host
-
-server {
-    listen 80;
-    server_name apex.yourdomain.tld;
-    location / {
-        proxy_pass http://127.0.0.1:${p};
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}`,
+    apache: () => `Apache helper: ${pluginDir.value}/apache/install.sh
+  Adds a dedicated Apache proxy virtual host and validates configuration before reload. TLS remains managed by your certificate setup.`,
+    cpanel: () => `cPanel helper: ${pluginDir.value}/cpanel/install.sh
+  Requires the cPanel account username. It writes standard + SSL vhost includes and rebuilds Apache configuration.`,
+    plesk: () => `Plesk helper: ${pluginDir.value}/plesk/install.sh
+  Writes the domain's Nginx proxy include and asks Plesk to reconfigure that domain.`,
+    directadmin: () => `DirectAdmin helper: ${pluginDir.value}/directadmin/install.sh
+  Requires the DirectAdmin account username. It writes the domain custom HTTPD include and runs CustomBuild.`,
+    nginx: () => `Nginx helper: ${pluginDir.value}/nginx/install.sh
+  Writes a per-domain reverse-proxy vhost and validates/reloads Nginx.`,
+    caddy: () => `Caddy helper: ${pluginDir.value}/caddy/install.sh
+  Adds an imported site fragment, validates Caddyfile, and preserves Caddy-managed HTTPS.`,
+    other: () => `Manual proxy instructions: ${pluginDir.value}/other/install.sh
+  The installer leaves the detected web server untouched and prints the loopback upstream and required headers.`,
   };
 
   function refresh() {
     const mode = document.querySelector('input[name=mode]:checked').value;
-    const p = parseInt(port.value, 10) || 8443;
-    cmd.textContent = `curl -fsSL https://${host}/install.sh | sudo bash -s -- --port ${p} --coexist ${mode}`;
+    if (!portWasEdited) port.value = mode === 'standalone' ? '80' : '8443';
+    const p = parseInt(port.value, 10) || 80;
+    const quote = (value) => `'${value.replace(/'/g, "'\\''")}'`;
+    const args = [`--port ${p}`, `--web-server ${mode}`, `--coexist ${mode}`, `--install-dir ${quote(installDir.value)}`, `--data-dir ${quote(dataDir.value)}`, `--plugin-dir ${quote(pluginDir.value)}`];
+    if (domain.value.trim()) args.push(`--domain ${quote(domain.value.trim())}`);
+    if (panelUser.value.trim() && ['cpanel', 'directadmin'].includes(mode)) args.push(`--panel-user ${quote(panelUser.value.trim())}`);
+    cmd.textContent = `curl -fsSL https://${host}/install.sh | sudo bash -s -- ${args.join(' ')}`;
     snippet.textContent = templates[mode](p);
   }
   document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', refresh));
-  port.addEventListener('input', refresh);
+  port.addEventListener('input', () => { portWasEdited = true; refresh(); });
+  [domain, panelUser, installDir, dataDir, pluginDir].forEach(input => input.addEventListener('input', refresh));
   refresh();
 })();
 </script>
