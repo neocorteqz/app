@@ -1,9 +1,9 @@
 <div class="between">
   <div><div class="section-title" style="margin:0">Deploy</div><h1>New Server</h1></div>
-  <a href="/servers" class="btn">← Back</a>
+  <a href="<?= h(apex_base_path()) ?>/servers" class="btn">← Back</a>
 </div>
 
-<form method="post" action="/servers" class="card" style="max-width:820px;margin-top:16px" data-testid="deploy-form">
+<form method="post" action="<?= h(apex_base_path()) ?>/servers" class="card" style="max-width:820px;margin-top:16px" data-testid="deploy-form">
   <?= csrf_field() ?>
   <div class="section-title" style="margin-top:0">1. Identity</div>
   <div class="form-group"><label>Server Name</label><input type="text" name="name" required placeholder="Survival SMP" data-testid="input-name"></div>
@@ -17,7 +17,7 @@
         <option value="<?= (int)$e['id'] ?>" data-game="<?= h($e['game']) ?>"><?= h($e['name']) ?> · <?= h($e['game']) ?></option>
       <?php endforeach; ?>
     </select>
-    <p class="mono muted" style="margin-top:6px">Browse the full <a href="/eggs">Egg Marketplace →</a></p>
+    <p class="mono muted" style="margin-top:6px">Browse the full <a href="<?= h(apex_base_path()) ?>/eggs">Egg Marketplace →</a></p>
   </div>
 
   <div class="section-title">3. Game & Node</div>
@@ -118,7 +118,7 @@
   async function refresh() {
     const game = gameSel.value;
     picker.innerHTML = '<span class="chip">Loading…</span>';
-    const r = await fetch('/json/loaders?game=' + encodeURIComponent(game));
+    const r = await fetch(apexUrl('/json/loaders?game=') + encodeURIComponent(game));
     const data = await r.json();
     picker.innerHTML = '';
     picker.appendChild(makeChip({id: '', slug: 'none', name: 'None (raw)', category: 'vanilla', logo_char: '∅', accent_color: '#64748B', requires_pack_id: 0}, true));
@@ -169,7 +169,7 @@
   async function resolvePreview(ref) {
     preview.innerHTML = '<div class="chip">Resolving…</div>';
     try {
-      const r = await fetch(`/json/modpack/preview?source=${encodeURIComponent(currentSource)}&ref=${encodeURIComponent(ref)}`);
+      const r = await fetch(apexUrl(`/json/modpack/preview?source=${encodeURIComponent(currentSource)}&ref=${encodeURIComponent(ref)}`));
       const j = await r.json();
       if (!j.ok) {
         preview.innerHTML = `<div class="flash error" data-testid="modpack-error">${j.error || 'Not found'}</div>`;

@@ -10,6 +10,6 @@
 <?php else: ?>
 </div>
 <?php endif; ?>
-<script src="/assets/app.js"></script>
+<script src="<?= h(apex_base_path()) ?>/assets/app.js"></script>
 </body>
 </html>

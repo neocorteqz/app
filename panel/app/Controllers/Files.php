@@ -22,7 +22,9 @@ class Files {
             http_response_code(500);
             die('Server files are outside the managed root.');
         }
-        DB::q('UPDATE servers SET work_dir=? WHERE id=?', [$resolved, $s['id']]);
+        if (($s['work_dir'] ?? '') !== $resolved) {
+            DB::q('UPDATE servers SET work_dir=? WHERE id=?', [$resolved, $s['id']]);
+        }
         return $resolved;
     }
     private function resolve(string $base, string $rel): ?string {

@@ -5,10 +5,10 @@
     <h1 data-testid="page-title">Deploy: <?= h($egg['name']) ?></h1>
     <p class="muted"><?= h($egg['tagline']) ?></p>
   </div>
-  <a href="/eggs/<?= (int)$egg['id'] ?>" class="btn">← Back</a>
+  <a href="<?= h(apex_base_path()) ?>/eggs/<?= (int)$egg['id'] ?>" class="btn">← Back</a>
 </div>
 
-<form method="post" action="/servers" class="card" style="max-width:820px;margin-top:16px" data-testid="egg-deploy-form">
+<form method="post" action="<?= h(apex_base_path()) ?>/servers" class="card" style="max-width:820px;margin-top:16px" data-testid="egg-deploy-form">
   <?= csrf_field() ?>
   <input type="hidden" name="egg_id" value="<?= (int)$egg['id'] ?>">
   <div class="form-group"><label>Server Name</label><input type="text" name="name" required placeholder="My <?= h($egg['name']) ?>" data-testid="input-name"></div>

@@ -4,7 +4,7 @@
     <div class="section-title" style="margin:0"><?= h($g['label']) ?> Template</div>
     <h1 data-testid="page-title"><?= h($egg['name']) ?></h1>
   </div>
-  <a href="/eggs/<?= (int)$egg['id'] ?>/deploy" class="btn btn-primary" data-testid="egg-deploy-cta">▶ Deploy this egg</a>
+  <a href="<?= h(apex_base_path()) ?>/eggs/<?= (int)$egg['id'] ?>/deploy" class="btn btn-primary" data-testid="egg-deploy-cta">▶ Deploy this egg</a>
 </div>
 
 <div class="grid-2" style="margin-top:16px">

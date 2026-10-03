@@ -1,20 +1,26 @@
 <?php
 // Router entry point - handles all requests
-require_once __DIR__ . '/../app/helpers.php';
+// A fresh upload must be installable before database-backed helpers run.
+if (!is_file(__DIR__ . '/../config/installed.php') && !is_file(__DIR__ . '/../config/.env') && !getenv('DB_NAME')) {
+    require __DIR__ . '/../app/WebInstaller.php';
+    apex_web_installer();
+    return true;
+}
+require_once __DIR__ . '/../app/includes.php';
 
 require_https();
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$base = apex_base_path();
+if ($base !== '' && ($path === $base || str_starts_with($path, $base . '/'))) $path = substr($path, strlen($base));
 $path = rtrim($path, '/') ?: '/';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if (preg_match('#^/join/([a-f0-9]{48})$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/PublicJoin.php';
     (new App\Controllers\PublicJoin())->show($m[1]);
     return true;
 }
 if (preg_match('#^/api/public/join/([a-f0-9]{48})$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/PublicJoin.php';
     (new App\Controllers\PublicJoin())->status($m[1]);
     return true;
 }
@@ -22,7 +28,19 @@ if (preg_match('#^/api/public/join/([a-f0-9]{48})$#', $path, $m) && $method === 
 // Serve static files directly through built-in server (except dynamic routes)
 $dynamic_paths = ['/theme.css', '/service-worker.js', '/manifest.webmanifest', '/install.sh', '/install-daemon.sh'];
 if (!in_array($path, $dynamic_paths) && preg_match('#\.(css|js|png|jpg|jpeg|svg|ico|webp|woff2?)$#i', $path)) {
-    return false;
+    $asset = realpath(__DIR__ . $path);
+    if ($asset && str_starts_with($asset, __DIR__ . '/assets/') && is_file($asset)) {
+        $types = ['css'=>'text/css', 'js'=>'application/javascript', 'svg'=>'image/svg+xml', 'png'=>'image/png', 'jpg'=>'image/jpeg', 'jpeg'=>'image/jpeg', 'webp'=>'image/webp', 'ico'=>'image/x-icon', 'woff'=>'font/woff', 'woff2'=>'font/woff2'];
+        header('Content-Type: ' . ($types[strtolower(pathinfo($asset, PATHINFO_EXTENSION))] ?? 'application/octet-stream'));
+        $etag = '"' . dechex(filemtime($asset)) . '-' . dechex(filesize($asset)) . '"';
+        header('ETag: ' . $etag);
+        header('Cache-Control: public, max-age=0, must-revalidate');
+        if (($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) { http_response_code(304); return true; }
+        readfile($asset);
+        return true;
+    }
+    http_response_code(404);
+    return true;
 }
 
 // Route map
@@ -82,21 +100,18 @@ $routes = [
 
 // Jobs API
 if (preg_match('#^/json/jobs/(\d+)$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Jobs.php';
     (new App\Controllers\Jobs())->apiShow((int)$m[1]); return true;
 }
 if (preg_match('#^/jobs/(\d+)/cancel$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Jobs.php';
     (new App\Controllers\Jobs())->cancel((int)$m[1]); return true;
 }
 if (preg_match('#^/json/servers/(\d+)/jobs$#', $path, $m) && $method === 'GET') {
     require_server_permission((int)$m[1], 'view_console');
-    require_once __DIR__ . '/../app/Controllers/Jobs.php';
+
     (new App\Controllers\Jobs())->apiForServer((int)$m[1]); return true;
 }
 
 if (preg_match('#^/servers/(\d+)/access$#', $path, $m) && in_array($method, ['GET','POST'], true)) {
-    require_once __DIR__ . '/../app/Controllers/ServerAccess.php';
     $controller = new App\Controllers\ServerAccess();
     $method === 'POST' ? $controller->save((int)$m[1]) : $controller->index((int)$m[1]);
     return true;
@@ -152,87 +167,68 @@ if (preg_match('#^/api/daemon/(start|stop|restart|console)/(\d+)$#', $path, $m) 
 
 // Mods dynamic
 if (preg_match('#^/mods/(\d+)$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Mods.php';
     (new App\Controllers\Mods())->show((int)$m[1]); return true;
 }
 
 // Egg dynamic routes
 if (preg_match('#^/eggs/(\d+)$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Eggs.php';
     (new App\Controllers\Eggs())->show((int)$m[1]); return true;
 }
 if (preg_match('#^/eggs/(\d+)/deploy$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Eggs.php';
     (new App\Controllers\Eggs())->deploy((int)$m[1]); return true;
 }
 
 // File Manager
 if (preg_match('#^/servers/(\d+)/modpack/install$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Servers.php';
     (new App\Controllers\Servers())->installPack((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->index((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/edit$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->edit((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/save$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->save((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/mkdir$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->mkdir((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/touch$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->touch((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/delete$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->delete((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/upload$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->upload((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/files/download$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Files.php';
     (new App\Controllers\Files())->download((int)$m[1]); return true;
 }
 
 // Backups
 if (preg_match('#^/servers/(\d+)/backups$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Backups.php';
     (new App\Controllers\Backups())->index((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/backups/schedule$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Backups.php';
     (new App\Controllers\Backups())->saveSchedule((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/backups/run$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Backups.php';
     (new App\Controllers\Backups())->runNow((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/backups/restore$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Backups.php';
     (new App\Controllers\Backups())->restore((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/backups/delete$#', $path, $m) && $method === 'POST') {
-    require_once __DIR__ . '/../app/Controllers/Backups.php';
     (new App\Controllers\Backups())->delete((int)$m[1]); return true;
 }
 if (preg_match('#^/servers/(\d+)/backups/download$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Backups.php';
     (new App\Controllers\Backups())->download((int)$m[1]); return true;
 }
 
 // Server detail routes (dynamic ID)
 if (preg_match('#^/servers/(\d+)$#', $path, $m) && $method === 'GET') {
-    require_once __DIR__ . '/../app/Controllers/Servers.php';
     (new App\Controllers\Servers())->show((int)$m[1]);
     return true;
 }
@@ -240,8 +236,6 @@ if (preg_match('#^/servers/(\d+)$#', $path, $m) && $method === 'GET') {
 $key = "$method $path";
 if (isset($routes[$key])) {
     [$class, $action] = $routes[$key];
-    $file = __DIR__ . '/../app/Controllers/' . basename(str_replace('App\\Controllers\\', '', $class)) . '.php';
-    require_once $file;
     $controller = new $class();
     $controller->$action();
     return true;

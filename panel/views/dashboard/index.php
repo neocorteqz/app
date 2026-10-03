@@ -5,8 +5,8 @@
     <p class="muted mono">// Node fleet status · <?= date('Y-m-d H:i:s') ?></p>
   </div>
   <div class="row">
-    <a href="/servers/new" class="btn btn-primary" data-testid="deploy-server-btn">＋ Deploy Server</a>
-    <a href="/theme" class="btn">◐ Theme</a>
+    <a href="<?= h(apex_base_path()) ?>/servers/new" class="btn btn-primary" data-testid="deploy-server-btn">＋ Deploy Server</a>
+    <a href="<?= h(apex_base_path()) ?>/theme" class="btn">◐ Theme</a>
   </div>
 </div>
 
@@ -27,7 +27,7 @@
     <?php foreach ($alerts as $alert): ?>
       <div class="between" style="gap:16px;padding:10px 0;border-bottom:1px solid var(--border-soft)">
         <div><strong><?= h($alert['title']) ?></strong><div class="muted" style="margin-top:4px"><?= h($alert['detail']) ?></div></div>
-        <div class="row"><span class="status status-<?= $alert['severity']==='error'?'offline':'starting' ?>"><?= strtoupper($alert['severity']) ?></span><a class="btn btn-sm" href="<?= h($alert['url']) ?>">Review</a></div>
+        <div class="row"><span class="status status-<?= $alert['severity']==='error'?'offline':'starting' ?>"><?= strtoupper($alert['severity']) ?></span><a class="btn btn-sm" href="<?= h(url($alert['url'])) ?>">Review</a></div>
       </div>
     <?php endforeach; ?>
   <?php endif; ?>
@@ -56,14 +56,14 @@
       <div class="meter"><span data-ram-bar style="width: <?= min(100,($s['ram_usage_mb']/max(1,$s['ram_mb']))*100) ?>%"></span></div>
     </div>
     <div class="actions">
-      <a href="/servers/<?= (int)$s['id'] ?>" class="btn btn-sm" data-testid="open-server-<?= (int)$s['id'] ?>">▶ Console</a>
+      <a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>" class="btn btn-sm" data-testid="open-server-<?= (int)$s['id'] ?>">▶ Console</a>
     </div>
   </div>
   <?php endforeach; ?>
   <?php if (empty($servers)): ?>
     <div class="card span-4" style="text-align:center;padding:40px" data-testid="empty-servers">
       <h3>No servers yet</h3><p class="muted">Deploy your first Minecraft, CS2, or Rust instance.</p>
-      <a href="/servers/new" class="btn btn-primary">＋ Deploy Server</a>
+      <a href="<?= h(apex_base_path()) ?>/servers/new" class="btn btn-primary">＋ Deploy Server</a>
     </div>
   <?php endif; ?>
 </div>

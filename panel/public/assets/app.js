@@ -46,7 +46,7 @@
 
   // PWA
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    navigator.serviceWorker.register(apexUrl('/service-worker.js')).catch(() => {});
   }
   let deferredPrompt;
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -67,9 +67,12 @@
   // Live server status refresh (dashboard/servers list)
   const list = document.getElementById('server-list-mount');
   if (list) {
+    let refreshing = false;
     async function refresh() {
+      if (document.hidden || refreshing) return;
+      refreshing = true;
       try {
-        const r = await fetch('/json/servers');
+        const r = await fetch(apexUrl('/json/servers'), {signal: AbortSignal.timeout(10000)});
         const data = await r.json();
         data.forEach((s) => {
           const el = document.querySelector(`[data-server-id="${s.id}"]`);
@@ -87,7 +90,7 @@
             if (players) players.textContent = s.players_online + '/' + s.players_max;
           }
         });
-      } catch (_) {}
+      } catch (_) {} finally { refreshing = false; }
     }
     setInterval(refresh, 4000);
   }
@@ -98,9 +101,12 @@
     const sid = con.getAttribute('data-server-id');
     const logEl = con.querySelector('.log');
     let lastId = 0;
+    let polling = false;
     async function tick() {
+      if (document.hidden || polling) return;
+      polling = true;
       try {
-        const r = await fetch(`/json/servers/logs?id=${sid}&after=${lastId}`);
+        const r = await fetch(apexUrl(`/json/servers/logs?id=${sid}&after=${lastId}`), {signal: AbortSignal.timeout(10000)});
         const data = await r.json();
         data.lines.forEach((l) => {
           const div = document.createElement('div');
@@ -110,7 +116,7 @@
           lastId = Math.max(lastId, l.id);
         });
         if (data.lines.length) logEl.scrollTop = logEl.scrollHeight;
-      } catch (_) {}
+      } catch (_) {} finally { polling = false; }
     }
     function escapeHtml(s) {
       return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -123,7 +129,7 @@
       if (e.key === 'Enter' && input.value.trim()) {
         const cmd = input.value.trim();
         input.value = '';
-        await fetch('/json/servers/console', {
+        await fetch(apexUrl('/json/servers/console'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF': document.querySelector('meta[name=csrf]')?.content || '' },
           body: JSON.stringify({ id: sid, cmd }),

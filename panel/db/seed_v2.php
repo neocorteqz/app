@@ -1,6 +1,6 @@
 <?php
 // Seed marketplace eggs (game templates)
-require_once __DIR__ . '/../app/DB.php';
+require_once __DIR__ . '/../app/db.php';
 
 $default_mc = json_encode([
     'server.properties' => "server-port={port}\nmax-players={players}\nmotd={name} — powered by ApexNode\nspawn-protection=0\nview-distance=10\n",

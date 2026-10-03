@@ -15,7 +15,7 @@
           <td class="mono muted"><?= h($uu['created_at']) ?></td>
           <td>
             <?php if ((int)$uu['id'] !== (int)$_SESSION['uid']): ?>
-              <form method="post" action="/users/delete" data-confirm="Remove user?" style="margin:0"><?= csrf_field() ?>
+              <form method="post" action="<?= h(apex_base_path()) ?>/users/delete" data-confirm="Remove user?" style="margin:0"><?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= (int)$uu['id'] ?>">
                 <button class="btn btn-sm btn-danger">✕</button>
               </form>
@@ -28,7 +28,7 @@
   </div>
   <div class="card">
     <div class="card-title"><h3>Invite user</h3></div>
-    <form method="post" action="/users" data-testid="user-form">
+    <form method="post" action="<?= h(apex_base_path()) ?>/users" data-testid="user-form">
       <?= csrf_field() ?>
       <div class="form-group"><label>Username</label><input name="username" required></div>
       <div class="form-group"><label>Email</label><input type="email" name="email" required></div>

@@ -89,3 +89,8 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+panel/config/installed.php
+panel/config/install-progress.php
+panel/config/install.lock
+panel/storage/

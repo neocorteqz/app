@@ -1,6 +1,6 @@
 <div class="between">
   <div><div class="section-title" style="margin:0">Fleet</div><h1 data-testid="page-title">Servers</h1></div>
-  <a href="/servers/new" class="btn btn-primary" data-testid="deploy-server-btn">＋ Deploy Server</a>
+  <a href="<?= h(apex_base_path()) ?>/servers/new" class="btn btn-primary" data-testid="deploy-server-btn">＋ Deploy Server</a>
 </div>
 
 <div id="server-list-mount" class="bento" style="margin-top:16px" data-testid="server-list">
@@ -25,15 +25,15 @@
       <div class="meter"><span data-ram-bar style="width: <?= min(100,($s['ram_usage_mb']/max(1,$s['ram_mb']))*100) ?>%"></span></div>
     </div>
     <div class="actions">
-      <a href="/servers/<?= (int)$s['id'] ?>" class="btn btn-sm" data-testid="open-server-<?= (int)$s['id'] ?>">Console →</a>
+      <a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>" class="btn btn-sm" data-testid="open-server-<?= (int)$s['id'] ?>">Console →</a>
       <?php if ($s['status'] !== 'online'): ?>
-        <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?>
+        <form method="post" action="<?= h(apex_base_path()) ?>/servers/action" style="margin:0"><?= csrf_field() ?>
           <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <input type="hidden" name="action" value="start">
           <button class="btn btn-sm btn-primary" data-testid="start-server-<?= (int)$s['id'] ?>">▶ Start</button>
         </form>
       <?php else: ?>
-        <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?>
+        <form method="post" action="<?= h(apex_base_path()) ?>/servers/action" style="margin:0"><?= csrf_field() ?>
           <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <input type="hidden" name="action" value="stop">
           <button class="btn btn-sm btn-danger" data-testid="stop-server-<?= (int)$s['id'] ?>">■ Stop</button>
@@ -45,7 +45,7 @@
 <?php if (empty($servers)): ?>
   <div class="card span-4" style="text-align:center;padding:40px" data-testid="empty-servers">
     <h3>No servers deployed</h3><p class="muted">Provision your first game server to see it here.</p>
-    <a href="/servers/new" class="btn btn-primary">＋ Deploy Server</a>
+    <a href="<?= h(apex_base_path()) ?>/servers/new" class="btn btn-primary">＋ Deploy Server</a>
   </div>
 <?php endif; ?>
 </div>

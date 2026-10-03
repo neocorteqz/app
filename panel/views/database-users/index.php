@@ -28,12 +28,12 @@
           <td class="mono muted"><?= h($r['host']) ?></td>
           <td class="mono muted"><?= h($r['created_at']) ?></td>
           <td>
-            <form method="post" action="/database-users/rotate" data-confirm="Rotate this database password? The current password will stop working immediately." style="display:inline-block;margin:0 6px 0 0">
+            <form method="post" action="<?= h(apex_base_path()) ?>/database-users/rotate" data-confirm="Rotate this database password? The current password will stop working immediately." style="display:inline-block;margin:0 6px 0 0">
               <?= csrf_field() ?>
               <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
               <button class="btn btn-sm" data-testid="rotate-db-password-<?= (int)$r['id'] ?>" title="Rotate password" aria-label="Rotate password">↻</button>
             </form>
-            <form method="post" action="/database-users/delete" data-confirm="Delete database user?" style="margin:0">
+            <form method="post" action="<?= h(apex_base_path()) ?>/database-users/delete" data-confirm="Delete database user?" style="margin:0">
               <?= csrf_field() ?>
               <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
               <button class="btn btn-sm btn-danger">✕</button>
@@ -48,7 +48,7 @@
   <div class="card">
     <div class="card-title"><h3>Create database user</h3></div>
     <p class="muted">Database names are placed in the <code>apexnode_</code> namespace.</p>
-    <form method="post" action="/database-users" data-testid="database-user-form">
+    <form method="post" action="<?= h(apex_base_path()) ?>/database-users" data-testid="database-user-form">
       <?= csrf_field() ?>
       <div class="form-group"><label>Friendly name</label><input name="name" required placeholder="Client app"></div>
       <div class="form-group"><label>Database name</label><input name="database_name" required placeholder="app_db"></div>

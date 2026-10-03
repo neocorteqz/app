@@ -2,7 +2,7 @@
   <div><div class="section-title" style="margin:0">Personalize</div><h1 data-testid="page-title">Theme Customizer</h1><p class="muted">Adjust the command tower to your taste. Live preview → save to persist.</p></div>
 </div>
 
-<form method="post" action="/theme" data-testid="theme-form">
+<form method="post" action="<?= h(apex_base_path()) ?>/theme" data-testid="theme-form">
   <?= csrf_field() ?>
   <div class="grid-2" style="margin-top:16px">
     <div class="card">

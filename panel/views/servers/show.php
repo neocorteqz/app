@@ -6,15 +6,15 @@
     <p class="mono muted">◉ <?= h($s['node_name']) ?> · :<?= (int)$s['port'] ?> · <?= (int)$s['players_online'] ?>/<?= (int)$s['players_max'] ?> players</p>
   </div>
   <div class="row">
-    <?php if (in_array($user['role'] ?? '', ['admin','operator'], true)): ?><a href="/servers/<?= (int)$s['id'] ?>/access" class="btn btn-sm" data-testid="server-access-link">♙ Access</a><?php endif; ?>
-    <?php if ($can_view_files): ?><a href="/servers/<?= (int)$s['id'] ?>/files" class="btn" data-testid="tab-files">≡ Files</a><?php endif; ?>
-    <?php if ($can_view_backups): ?><a href="/servers/<?= (int)$s['id'] ?>/backups" class="btn" data-testid="tab-backups">◱ Backups</a><?php endif; ?>
+    <?php if (in_array($user['role'] ?? '', ['admin','operator'], true)): ?><a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/access" class="btn btn-sm" data-testid="server-access-link">♙ Access</a><?php endif; ?>
+    <?php if ($can_view_files): ?><a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/files" class="btn" data-testid="tab-files">≡ Files</a><?php endif; ?>
+    <?php if ($can_view_backups): ?><a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/backups" class="btn" data-testid="tab-backups">◱ Backups</a><?php endif; ?>
     <?php if ($can_control): ?>
-    <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="start"><button class="btn btn-primary btn-sm" data-testid="btn-start">▶ Start</button></form>
-    <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="stop"><button class="btn btn-danger btn-sm" data-testid="btn-stop">■ Stop</button></form>
-    <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="restart"><button class="btn btn-sm" data-testid="btn-restart">↻ Restart</button></form>
-    <form method="post" action="/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="kill"><button class="btn btn-sm" data-testid="btn-kill">☠ Kill</button></form>
-    <?php if (($user['role'] ?? '') === 'admin'): ?><form method="post" action="/servers/delete" data-confirm="Delete this server?" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><button class="btn btn-sm btn-danger" data-testid="btn-delete">✕ Delete</button></form><?php endif; ?>
+    <form method="post" action="<?= h(apex_base_path()) ?>/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="start"><button class="btn btn-primary btn-sm" data-testid="btn-start">▶ Start</button></form>
+    <form method="post" action="<?= h(apex_base_path()) ?>/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="stop"><button class="btn btn-danger btn-sm" data-testid="btn-stop">■ Stop</button></form>
+    <form method="post" action="<?= h(apex_base_path()) ?>/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="restart"><button class="btn btn-sm" data-testid="btn-restart">↻ Restart</button></form>
+    <form method="post" action="<?= h(apex_base_path()) ?>/servers/action" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><input type="hidden" name="action" value="kill"><button class="btn btn-sm" data-testid="btn-kill">☠ Kill</button></form>
+    <?php if (($user['role'] ?? '') === 'admin'): ?><form method="post" action="<?= h(apex_base_path()) ?>/servers/delete" data-confirm="Delete this server?" style="margin:0"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>"><button class="btn btn-sm btn-danger" data-testid="btn-delete">✕ Delete</button></form><?php endif; ?>
     <?php endif; ?>
   </div>
 </div>
@@ -23,7 +23,7 @@
 $scheme = is_https_request() ? 'https' : 'http';
 $requestHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
 if (!preg_match('/^[A-Za-z0-9.:[\]-]+$/', $requestHost)) $requestHost = 'localhost';
-$publicJoinUrl = $scheme . '://' . $requestHost . '/join/' . h($s['share_token']);
+$publicJoinUrl = $scheme . '://' . $requestHost . url('/join/') . h($s['share_token']);
 ?>
 <div class="card" style="margin-top:14px" data-testid="server-share-panel">
   <div class="between">
@@ -38,7 +38,7 @@ $publicJoinUrl = $scheme . '://' . $requestHost . '/join/' . h($s['share_token']
 
 <div class="bento" style="margin-top:16px">
   <div class="card span-3" id="jobs-panel" data-server-id="<?= (int)$s['id'] ?>" data-testid="server-jobs-panel" style="display:none">
-    <div class="card-title"><h3>◐ Active Jobs</h3><a href="/jobs" class="btn btn-sm">All Jobs →</a></div>
+    <div class="card-title"><h3>◐ Active Jobs</h3><a href="<?= h(apex_base_path()) ?>/jobs" class="btn btn-sm">All Jobs →</a></div>
     <div id="jobs-list"></div>
   </div>
   <?php if ($can_view_console): ?><div class="card span-3" id="console-mount" data-server-id="<?= (int)$s['id'] ?>" data-testid="console-panel">
@@ -79,7 +79,7 @@ $publicJoinUrl = $scheme . '://' . $requestHost . '/join/' . h($s['share_token']
             <td>
               <span class="status status-<?= ($s['modpack_status']==='installed'?'online':($s['modpack_status']==='failed'?'offline':'starting')) ?>" data-testid="modpack-status"><?= strtoupper($s['modpack_status'] ?: 'PENDING') ?></span>
               <?php if (in_array($s['modpack_status'], ['pending','failed','none',''], true)): ?>
-                <form method="post" action="/servers/<?= (int)$s['id'] ?>/modpack/install" style="display:inline-block;margin-left:8px">
+                <form method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/modpack/install" style="display:inline-block;margin-left:8px">
                   <?= csrf_field() ?>
                   <button class="btn btn-sm btn-primary" data-testid="btn-install-pack">⬇ Install pack now</button>
                 </form>
@@ -103,7 +103,7 @@ $publicJoinUrl = $scheme . '://' . $requestHost . '/join/' . h($s['share_token']
   let lastCompletedSeen = new Set();
   async function tick() {
     try {
-      const r = await fetch(`/json/servers/${sid}/jobs`);
+      const r = await fetch(apexUrl(`/json/servers/${sid}/jobs`));
       if (!r.ok) return;
       const jobs = await r.json();
       // If any modpack_install job just transitioned to completed and we haven't reloaded yet, refresh once
@@ -124,7 +124,7 @@ $publicJoinUrl = $scheme . '://' . $requestHost . '/join/' . h($s['share_token']
       list.innerHTML = jobs.slice(0, 3).map(j => {
         const cls = j.status === 'completed' ? 'online' : j.status === 'failed' || j.status === 'cancelled' ? 'offline' : j.status === 'running' ? 'starting' : 'installing';
         const cancelBtn = (j.status === 'queued' || j.status === 'running')
-          ? `<form method="post" action="/jobs/${j.id}/cancel" data-confirm="Cancel this job?" style="margin:0">
+          ? `<form method="post" action="<?= h(apex_base_path()) ?>/jobs/${j.id}/cancel" data-confirm="Cancel this job?" style="margin:0">
                <input type="hidden" name="_csrf" value="${document.querySelector('meta[name=csrf]').content}">
                <button class="btn btn-sm btn-danger" data-testid="cancel-server-job-${j.id}">✕ Cancel</button>
              </form>` : '';

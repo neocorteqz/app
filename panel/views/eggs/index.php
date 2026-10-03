@@ -10,7 +10,7 @@
 <?php if (($user['role'] ?? '') !== 'viewer'): ?>
 <div class="card" style="margin:16px 0">
   <div class="card-title"><h3>Import Pterodactyl egg JSON</h3></div>
-  <form method="post" action="/eggs/preview" data-testid="pterodactyl-import-form">
+  <form method="post" action="<?= h(apex_base_path()) ?>/eggs/preview" data-testid="pterodactyl-import-form">
     <?= csrf_field() ?>
     <div class="form-group">
       <label>Egg JSON</label>
@@ -23,7 +23,7 @@
 
 <div class="row" style="margin:14px 0" data-testid="egg-filters">
   <?php foreach ([['all','All'],['minecraft-java','Minecraft Java'],['minecraft-bedrock','Bedrock'],['cs2','CS2'],['rust','Rust']] as $f): ?>
-    <a href="/eggs?game=<?= $f[0] ?>" class="chip <?= $filter === $f[0] ? 'accent' : '' ?>" data-testid="egg-filter-<?= $f[0] ?>" style="padding:8px 14px;text-decoration:none"><?= $f[1] ?></a>
+    <a href="<?= h(apex_base_path()) ?>/eggs?game=<?= $f[0] ?>" class="chip <?= $filter === $f[0] ? 'accent' : '' ?>" data-testid="egg-filter-<?= $f[0] ?>" style="padding:8px 14px;text-decoration:none"><?= $f[1] ?></a>
   <?php endforeach; ?>
 </div>
 
@@ -40,8 +40,8 @@
         ⬇ <?= number_format($egg['downloads']) ?> deploys · by <?= h($egg['author']) ?>
       </div>
       <div class="row">
-        <a href="/eggs/<?= (int)$egg['id'] ?>" class="btn btn-sm" data-testid="egg-details-<?= (int)$egg['id'] ?>">Details</a>
-        <a href="/eggs/<?= (int)$egg['id'] ?>/deploy" class="btn btn-sm btn-primary" data-testid="egg-deploy-<?= (int)$egg['id'] ?>">▶ Deploy</a>
+        <a href="<?= h(apex_base_path()) ?>/eggs/<?= (int)$egg['id'] ?>" class="btn btn-sm" data-testid="egg-details-<?= (int)$egg['id'] ?>">Details</a>
+        <a href="<?= h(apex_base_path()) ?>/eggs/<?= (int)$egg['id'] ?>/deploy" class="btn btn-sm btn-primary" data-testid="egg-deploy-<?= (int)$egg['id'] ?>">▶ Deploy</a>
       </div>
     </div>
   <?php endforeach; ?>

@@ -9,7 +9,7 @@
 
 <div class="row" style="margin:14px 0" data-testid="mods-filters">
   <?php foreach ([['all','All'],['minecraft-java','Minecraft Java'],['minecraft-bedrock','Bedrock'],['cs2','CS2'],['rust','Rust']] as $f): ?>
-    <a href="/mods?game=<?= $f[0] ?>" class="chip <?= $filter === $f[0] ? 'accent' : '' ?>" data-testid="mods-filter-<?= $f[0] ?>" style="padding:8px 14px;text-decoration:none"><?= $f[1] ?></a>
+    <a href="<?= h(apex_base_path()) ?>/mods?game=<?= $f[0] ?>" class="chip <?= $filter === $f[0] ? 'accent' : '' ?>" data-testid="mods-filter-<?= $f[0] ?>" style="padding:8px 14px;text-decoration:none"><?= $f[1] ?></a>
   <?php endforeach; ?>
 </div>
 
@@ -34,8 +34,8 @@
         </div>
         <p class="muted" style="min-height:36px"><?= h($l['tagline']) ?></p>
         <div class="row" style="margin-top:10px">
-          <a href="/mods/<?= (int)$l['id'] ?>" class="btn btn-sm" data-testid="mod-details-<?= (int)$l['id'] ?>">Details</a>
-          <a href="/mods/<?= (int)$l['id'] ?>#deploy" class="btn btn-sm btn-primary" data-testid="mod-deploy-<?= (int)$l['id'] ?>">▶ Install</a>
+          <a href="<?= h(apex_base_path()) ?>/mods/<?= (int)$l['id'] ?>" class="btn btn-sm" data-testid="mod-details-<?= (int)$l['id'] ?>">Details</a>
+          <a href="<?= h(apex_base_path()) ?>/mods/<?= (int)$l['id'] ?>#deploy" class="btn btn-sm btn-primary" data-testid="mod-deploy-<?= (int)$l['id'] ?>">▶ Install</a>
         </div>
       </div>
     <?php endforeach; ?>

@@ -7,7 +7,7 @@
   <p>Access your tactical control tower.</p>
   <?php if ($msg = flash('success')): ?><div class="flash success"><?= h($msg) ?></div><?php endif; ?>
   <?php if ($msg = flash('error')): ?><div class="flash error" data-testid="flash-error"><?= h($msg) ?></div><?php endif; ?>
-  <form method="post" action="/login">
+  <form method="post" action="<?= h(apex_base_path()) ?>/login">
     <?= csrf_field() ?>
     <div class="form-group">
       <label for="email">Email or Username</label>
@@ -20,6 +20,6 @@
     <button class="btn btn-primary" style="width:100%" data-testid="login-submit">Enter Command Tower →</button>
   </form>
   <p style="text-align:center;margin-top:20px" class="muted">
-    First install? <a href="/register" data-testid="link-register">Create the first admin →</a>
+    First install? <a href="<?= h(apex_base_path()) ?>/register" data-testid="link-register">Create the first admin →</a>
   </p>
 </div>

@@ -1,6 +1,6 @@
 <div class="between">
   <div><div class="section-title" style="margin:0">Pterodactyl</div><h1 data-testid="egg-preview-title">Review Egg Import</h1></div>
-  <a href="/eggs" class="btn">Cancel</a>
+  <a href="<?= h(apex_base_path()) ?>/eggs" class="btn">Cancel</a>
 </div>
 
 <div class="card" style="margin-top:16px" data-testid="egg-import-preview">
@@ -27,7 +27,7 @@
   <div class="form-group"><label>Environment variables (<?= count($egg_variables) ?>)</label>
     <?php foreach ($egg_variables as $variable): ?><div class="mono muted"><?= h($variable['env_variable'] ?? '') ?> = <?= h($variable['default_value'] ?? '') ?></div><?php endforeach; ?>
   </div>
-  <form method="post" action="/eggs/import" data-testid="egg-import-confirm-form">
+  <form method="post" action="<?= h(apex_base_path()) ?>/eggs/import" data-testid="egg-import-confirm-form">
     <?= csrf_field() ?><textarea name="egg_json" hidden><?= h($egg_json) ?></textarea>
     <button class="btn btn-primary" data-testid="confirm-egg-import"><?= $existing_egg && !hash_equals($existing_egg['source_hash'], $egg_hash) ? 'Apply Egg Update' : ($existing_egg ? 'Import Unchanged Egg' : 'Confirm Egg Import') ?></button>
   </form>

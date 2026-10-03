@@ -4,7 +4,7 @@
 </div>
 
 <div class="grid-2" style="margin-top:16px">
-  <form method="post" action="/discord" class="card" data-testid="discord-form">
+  <form method="post" action="<?= h(apex_base_path()) ?>/discord" class="card" data-testid="discord-form">
     <?= csrf_field() ?>
     <div class="section-title" style="margin-top:0">Credentials</div>
     <div class="form-group">
@@ -25,7 +25,7 @@
   <div class="card">
     <div class="section-title" style="margin-top:0">Test connection</div>
     <p class="muted">Ping Discord to verify the bot identity is valid.</p>
-    <form method="post" action="/discord/test"><?= csrf_field() ?>
+    <form method="post" action="<?= h(apex_base_path()) ?>/discord/test"><?= csrf_field() ?>
       <button class="btn" data-testid="discord-test">◈ Test Bot Token</button>
     </form>
 

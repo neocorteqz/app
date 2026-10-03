@@ -1,0 +1,36 @@
+name: PHP panel
+on:
+  push:
+    paths: ['panel/**', 'tests/panel/**', '.github/workflows/panel.yml']
+  pull_request:
+    paths: ['panel/**', 'tests/panel/**', '.github/workflows/panel.yml']
+permissions:
+  contents: read
+jobs:
+  browser-install:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root-test-password
+          MYSQL_DATABASE: apex_setup_test
+          MYSQL_USER: apex_setup_test
+          MYSQL_PASSWORD: test-database-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot-test-password"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, curl
+          coverage: none
+      - name: Validate PHP syntax
+        run: find panel -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Validate JavaScript syntax
+        run: node --check panel/public/assets/app.js
+      - name: Exercise browser installation and subdirectory panel
+        run: python3 tests/panel/browser_install.py
