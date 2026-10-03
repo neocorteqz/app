@@ -153,7 +153,7 @@ case "$COEXIST" in
   cpanel|directadmin) WEB_SERVER="apache" ;;
   plesk|nginx) WEB_SERVER="nginx" ;;
   standalone) WEB_SERVER="nginx (managed by ApexNode)" ;;
-  apache|nginx|caddy|other) WEB_SERVER="$COEXIST" ;;
+  apache|caddy|other) WEB_SERVER="$COEXIST" ;;
 esac
 
 TMP_SOURCE=""

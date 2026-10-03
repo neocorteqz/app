@@ -1,47 +1,64 @@
 <?php
+
 namespace App\Controllers;
+
 use DB;
 
-class Eggs {
-    public function index() {
+class Eggs
+{
+    public function index()
+    {
         \require_login();
         $game = $_GET['game'] ?? 'all';
         $sql = 'SELECT * FROM eggs';
         $args = [];
-        if ($game !== 'all') { $sql .= ' WHERE game = ?'; $args[] = $game; }
+        if ($game !== 'all') {
+            $sql .= ' WHERE game = ?';
+            $args[] = $game;
+        }
         $sql .= ' ORDER BY featured DESC, downloads DESC, id ASC';
         $eggs = DB::all($sql, $args);
-        \view('eggs/index', ['title'=>'Egg Marketplace','eggs'=>$eggs,'filter'=>$game]);
+        \view('eggs/index', ['title' => 'Egg Marketplace','eggs' => $eggs,'filter' => $game]);
     }
-    public function show(int $id) {
+    public function show(int $id)
+    {
         \require_login();
         $egg = DB::one('SELECT * FROM eggs WHERE id=?', [$id]);
-        if (!$egg) { http_response_code(404); \view('errors/404'); return; }
-        \view('eggs/show', ['title'=>$egg['name'],'egg'=>$egg]);
+        if (!$egg) {
+            http_response_code(404);
+            \view('errors/404');
+            return;
+        }
+        \view('eggs/show', ['title' => $egg['name'],'egg' => $egg]);
     }
-    public function deploy(int $id) {
+    public function deploy(int $id)
+    {
         \require_role('operator');
         $egg = DB::one('SELECT * FROM eggs WHERE id=?', [$id]);
-        if (!$egg) { \flash('error','Egg not found.'); \redirect('/eggs'); }
+        if (!$egg) {
+            \flash('error', 'Egg not found.');
+            \redirect('/eggs');
+        }
         $nodes = DB::all('SELECT * FROM nodes ORDER BY name');
-        \view('eggs/deploy', ['title'=>'Deploy '.$egg['name'],'egg'=>$egg,'nodes'=>$nodes]);
+        \view('eggs/deploy', ['title' => 'Deploy ' . $egg['name'],'egg' => $egg,'nodes' => $nodes]);
     }
-    public function import() {
+    public function import()
+    {
         \check_csrf();
         \require_role('operator');
         $raw = trim((string)($_POST['egg_json'] ?? ''));
         if ($raw === '') {
-            \flash('error','Egg JSON is required.');
+            \flash('error', 'Egg JSON is required.');
             \redirect('/eggs');
         }
         $data = json_decode($raw, true);
         if (!is_array($data)) {
-            \flash('error','Invalid Pterodactyl egg JSON.');
+            \flash('error', 'Invalid Pterodactyl egg JSON.');
             \redirect('/eggs');
         }
         $confirmedHash = hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         if (empty($_SESSION['egg_import_preview']) || !hash_equals($_SESSION['egg_import_preview'], $confirmedHash)) {
-            \flash('error','Review this egg before importing it.');
+            \flash('error', 'Review this egg before importing it.');
             \redirect('/eggs');
         }
         unset($_SESSION['egg_import_preview']);
@@ -77,15 +94,15 @@ class Eggs {
         $existing = DB::one('SELECT id, source_hash FROM eggs WHERE name=? LIMIT 1', [$name]);
         if ($existing) {
             if (empty($existing['source_hash'])) {
-                \flash('error','An egg with that name already exists and was not imported from Pterodactyl.');
+                \flash('error', 'An egg with that name already exists and was not imported from Pterodactyl.');
                 \redirect('/eggs');
             }
             DB::q('UPDATE eggs SET game=?, tagline=?, description=?, start_command=?, docker_image=?, default_files=?, default_env=?, source_hash=? WHERE id=?', [
                 $game, $tagline !== '' ? $tagline : 'Imported Pterodactyl egg', $description, $start, $dockerImage,
                 $defaultFiles ? json_encode($defaultFiles) : null, $defaultEnv ? json_encode($defaultEnv) : null, $sourceHash, $existing['id'],
             ]);
-            \log_activity('update-pterodactyl-egg', 'egg:'.$name, substr($sourceHash, 0, 12));
-            \flash('success','Updated imported egg "'.$name.'".');
+            \log_activity('update-pterodactyl-egg', 'egg:' . $name, substr($sourceHash, 0, 12));
+            \flash('success', 'Updated imported egg "' . $name . '".');
             \redirect('/eggs');
         }
         DB::insert('eggs', [
@@ -102,35 +119,41 @@ class Eggs {
             'featured' => 0,
             'source_hash' => $sourceHash,
         ]);
-        \log_activity('import-pterodactyl-egg', 'egg:'.$name, substr($sourceHash, 0, 12));
-        \flash('success','Imported "'.$name.'" from a Pterodactyl egg definition.');
+        \log_activity('import-pterodactyl-egg', 'egg:' . $name, substr($sourceHash, 0, 12));
+        \flash('success', 'Imported "' . $name . '" from a Pterodactyl egg definition.');
         \redirect('/eggs');
     }
-    public function previewImport() {
+    public function previewImport()
+    {
         \check_csrf();
         \require_role('operator');
         $raw = trim((string)($_POST['egg_json'] ?? ''));
         $data = json_decode($raw, true);
         if ($raw === '' || !is_array($data)) {
-            \flash('error','Provide valid Pterodactyl egg JSON to preview.');
+            \flash('error', 'Provide valid Pterodactyl egg JSON to preview.');
             \redirect('/eggs');
         }
         $name = trim((string)($data['name'] ?? 'Custom Egg'));
         $hash = hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         $_SESSION['egg_import_preview'] = $hash;
         $existing = DB::one('SELECT id, source_hash, game, start_command, docker_image FROM eggs WHERE name=? LIMIT 1', [$name]);
-        if ($existing && empty($existing['source_hash'])) $existing = null;
+        if ($existing && empty($existing['source_hash'])) {
+            $existing = null;
+        }
         $game = $this->detectGame($data, $name);
         $images = $data['docker_images'] ?? [];
-        if (is_string($images)) $images = ['default' => $images];
+        if (is_string($images)) {
+            $images = ['default' => $images];
+        }
         $variables = array_values(array_filter($data['variables'] ?? [], fn($v) => is_array($v)));
         \view('eggs/preview', [
-            'title'=>'Review Egg Import', 'egg_data'=>$data, 'egg_json'=>$raw, 'egg_hash'=>$hash,
-            'egg_name'=>$name, 'egg_game'=>$game, 'egg_start'=>trim((string)($data['startup'] ?? $data['start_command'] ?? '')),
-            'egg_images'=>$images, 'egg_variables'=>$variables, 'existing_egg'=>$existing,
+            'title' => 'Review Egg Import', 'egg_data' => $data, 'egg_json' => $raw, 'egg_hash' => $hash,
+            'egg_name' => $name, 'egg_game' => $game, 'egg_start' => trim((string)($data['startup'] ?? $data['start_command'] ?? '')),
+            'egg_images' => $images, 'egg_variables' => $variables, 'existing_egg' => $existing,
         ]);
     }
-    private function detectGame(array $data, string $name): string {
+    private function detectGame(array $data, string $name): string
+    {
         $haystack = strtolower($name . ' ' . json_encode($data));
         $matches = [
             'minecraft-java' => ['minecraft', 'paper', 'forge', 'fabric', 'spigot', 'vanilla'],

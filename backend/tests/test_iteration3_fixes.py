@@ -1,19 +1,25 @@
 """Iteration 3 — targeted retest of two bug fixes:
-   (1) status resets to 'offline' (not stuck 'installing') after successful modpack install
-   (2) ZIP override extraction guards against path traversal
-   Plus a small regression sanity block.
+(1) status resets to 'offline' (not stuck 'installing') after successful modpack install
+(2) ZIP override extraction guards against path traversal
+Plus a small regression sanity block.
 """
+
 import io
 import os
 import re
 import sys
 import time
 import zipfile
-from pathlib import Path
 
 import pymysql
 import pytest
 import requests
+
+# These historical suites require a disposable, configured game host.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("APEX_RUN_LIVE_TESTS") != "1",
+    reason="Set APEX_RUN_LIVE_TESTS=1 only for an explicitly provisioned disposable host",
+)
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "http://127.0.0.1:3001"
 
@@ -34,17 +40,26 @@ def admin_session():
     s = requests.Session()
     r = s.get(f"{BASE}/login", verify=False)
     csrf = _csrf(r.text)
-    r = s.post(f"{BASE}/login",
-               data={"_csrf": csrf, "email": "admin", "password": "admin123"},
-               allow_redirects=False, verify=False)
+    r = s.post(
+        f"{BASE}/login",
+        data={"_csrf": csrf, "email": "admin", "password": "admin123"},
+        allow_redirects=False,
+        verify=False,
+    )
     assert r.status_code in (302, 303), f"login failed: {r.status_code}"
     return s
 
 
 @pytest.fixture(scope="module")
 def db():
-    conn = pymysql.connect(host="127.0.0.1", user="apexnode", password="apex_local_dev",
-                          database="apexnode", cursorclass=pymysql.cursors.DictCursor, autocommit=True)
+    conn = pymysql.connect(
+        host="127.0.0.1",
+        user="apexnode",
+        password="apex_local_dev",
+        database="apexnode",
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
     yield conn
     conn.close()
 
@@ -60,19 +75,36 @@ class TestStatusResetAfterInstall:
 
         r = admin_session.get(f"{BASE}/servers/new", verify=False)
         csrf = _csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers", data={
-            "_csrf": csrf, "name": uniq, "game": "minecraft-java",
-            "loader_id": 9, "modpack_ref": "adrenaserver",
-            "node_id": 1, "port": port, "cpu_limit": 2, "ram_mb": 2048, "disk_gb": 5,
-        }, allow_redirects=False, verify=False)
+        r = admin_session.post(
+            f"{BASE}/servers",
+            data={
+                "_csrf": csrf,
+                "name": uniq,
+                "game": "minecraft-java",
+                "loader_id": 9,
+                "modpack_ref": "adrenaserver",
+                "node_id": 1,
+                "port": port,
+                "cpu_limit": 2,
+                "ram_mb": 2048,
+                "disk_gb": 5,
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert r.status_code in (302, 303), r.text[:400]
         sid = int(re.search(r"/servers/(\d+)", r.headers["Location"]).group(1))
 
         # trigger install
         r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
         csrf = _csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers/{sid}/modpack/install",
-                               data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=240)
+        r = admin_session.post(
+            f"{BASE}/servers/{sid}/modpack/install",
+            data={"_csrf": csrf},
+            allow_redirects=False,
+            verify=False,
+            timeout=240,
+        )
         assert r.status_code in (200, 302, 303), r.text[:400]
 
         deadline = time.time() + 60
@@ -117,6 +149,7 @@ class TestExtractOverridesTraversalGuard:
 
         zip_bytes.seek(0)
         logs = []
+
         def log(line, level):
             logs.append((line, level))
 
@@ -130,11 +163,12 @@ class TestExtractOverridesTraversalGuard:
         assert ok_file.read_text() == "hello"
 
         # malicious file must NOT exist anywhere
-        assert not os.path.exists("/etc/foo.txt") or open("/etc/foo.txt").read() != "PWNED", \
+        assert not os.path.exists("/etc/foo.txt") or open("/etc/foo.txt").read() != "PWNED", (
             "malicious traversal wrote outside sandbox!"
+        )
 
         # warning line emitted
-        warn_lines = [l for l, lv in logs if l.startswith("[modpack] ! skipped")]
+        warn_lines = [line for line, lv in logs if line.startswith("[modpack] ! skipped")]
         assert warn_lines, f"no 'skipped' warning logged. logs={logs}"
 
 
@@ -149,22 +183,41 @@ class TestFailurePathStatusReset:
         # Create with a valid ref first (so store validation passes), then patch to bad ref
         r = admin_session.get(f"{BASE}/servers/new", verify=False)
         csrf = _csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers", data={
-            "_csrf": csrf, "name": uniq, "game": "minecraft-java",
-            "loader_id": 9, "modpack_ref": "adrenaserver",
-            "node_id": 1, "port": port, "cpu_limit": 2, "ram_mb": 2048, "disk_gb": 5,
-        }, allow_redirects=False, verify=False)
+        r = admin_session.post(
+            f"{BASE}/servers",
+            data={
+                "_csrf": csrf,
+                "name": uniq,
+                "game": "minecraft-java",
+                "loader_id": 9,
+                "modpack_ref": "adrenaserver",
+                "node_id": 1,
+                "port": port,
+                "cpu_limit": 2,
+                "ram_mb": 2048,
+                "disk_gb": 5,
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert r.status_code in (302, 303), r.text[:400]
         sid = int(re.search(r"/servers/(\d+)", r.headers["Location"]).group(1))
 
         with db.cursor() as c:
-            c.execute("UPDATE servers SET modpack_ref=%s, modpack_status='pending' WHERE id=%s",
-                     ("definitely-not-a-real-pack-slug-xyz", sid))
+            c.execute(
+                "UPDATE servers SET modpack_ref=%s, modpack_status='pending' WHERE id=%s",
+                ("definitely-not-a-real-pack-slug-xyz", sid),
+            )
 
         r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
         csrf = _csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers/{sid}/modpack/install",
-                               data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=60)
+        r = admin_session.post(
+            f"{BASE}/servers/{sid}/modpack/install",
+            data={"_csrf": csrf},
+            allow_redirects=False,
+            verify=False,
+            timeout=60,
+        )
         assert r.status_code in (200, 302, 303, 400, 500)
 
         time.sleep(2)
@@ -176,21 +229,28 @@ class TestFailurePathStatusReset:
 
         assert row["modpack_status"] == "failed", row
         assert row["status"] == "crashed", row
-        assert any(l.startswith("[modpack] \u2717 FAILED") for l in logs), \
+        assert any(line.startswith("[modpack] \u2717 FAILED") for line in logs), (
             f"no FAILED log line found. sample={logs[-5:]}"
+        )
 
 
 # ---------- Regression sanity ----------
 class TestRegressionSanity:
     def test_preview_modrinth(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview?source=modrinth&ref=fabulously-optimized",
-                              verify=False, timeout=30)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview?source=modrinth&ref=fabulously-optimized",
+            verify=False,
+            timeout=30,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
     def test_preview_curseforge(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview?source=curseforge&ref=all-the-mods-9",
-                              verify=False, timeout=45)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview?source=curseforge&ref=all-the-mods-9",
+            verify=False,
+            timeout=45,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 

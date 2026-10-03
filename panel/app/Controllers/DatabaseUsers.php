@@ -1,23 +1,30 @@
 <?php
+
 namespace App\Controllers;
+
 use DB;
 
-class DatabaseUsers {
-    public function index() {
+class DatabaseUsers
+{
+    public function index()
+    {
         \require_role('admin');
         $rows = DB::all('SELECT id, name, username, database_name, host, created_at FROM database_users ORDER BY id ASC');
         $config = require __DIR__ . '/../../config/config.php';
         \view('database-users/index', ['title' => 'Database Users', 'rows' => $rows, 'credential_secret' => \flash('credential_secret'), 'provisioning_configured' => !empty($config['db_provisioner']['user']) && !empty($config['db_provisioner']['pass'])]);
     }
 
-    public function store() {
+    public function store()
+    {
         \check_csrf();
         \require_role('admin');
 
         $name = trim((string)($_POST['name'] ?? ''));
         $dbName = trim((string)($_POST['database_name'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
-        if ($password === '') $password = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
+        if ($password === '') {
+            $password = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
+        }
         $host = trim((string)($_POST['host'] ?? 'localhost'));
 
         if ($name === '' || $dbName === '' || strlen($password) < 8) {
@@ -73,7 +80,8 @@ class DatabaseUsers {
         \redirect('/database-users');
     }
 
-    public function rotate() {
+    public function rotate()
+    {
         \check_csrf();
         \require_role('admin');
         $id = (int)($_POST['id'] ?? 0);
@@ -98,7 +106,8 @@ class DatabaseUsers {
         \redirect('/database-users');
     }
 
-    public function delete() {
+    public function delete()
+    {
         \check_csrf();
         \require_role('admin');
 

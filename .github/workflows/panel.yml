@@ -35,6 +35,8 @@ jobs:
       - name: Exercise browser installation and subdirectory panel
         run: python3 tests/panel/browser_install.py
       - name: Install downloader test dependency
-        run: python3 -m pip install requests
+        run: python3 -m pip install requests fastapi pymysql discord.py
+      - name: Exercise runtime and Discord controls
+        run: python3 tests/panel/test_runtime_quality.py
       - name: Exercise download sandbox and SSRF protection
         run: python3 tests/panel/test_download_security.py

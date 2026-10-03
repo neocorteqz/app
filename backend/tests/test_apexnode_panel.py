@@ -1,10 +1,18 @@
 """ApexNode Panel end-to-end backend tests (PHP panel + FastAPI daemon)."""
+
 import json
 import os
 import re
 import time
+
 import pytest
 import requests
+
+# These historical suites require a disposable, configured game host.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("APEX_RUN_LIVE_TESTS") != "1",
+    reason="Set APEX_RUN_LIVE_TESTS=1 only for an explicitly provisioned disposable host",
+)
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:3001").rstrip("/")
 
@@ -75,8 +83,18 @@ class TestPublic:
 class TestSidebarNav:
     @pytest.mark.parametrize(
         "path",
-        ["/dashboard", "/servers", "/eggs", "/mods", "/nodes",
-         "/activity", "/theme", "/discord", "/users", "/install"],
+        [
+            "/dashboard",
+            "/servers",
+            "/eggs",
+            "/mods",
+            "/nodes",
+            "/activity",
+            "/theme",
+            "/discord",
+            "/users",
+            "/install",
+        ],
     )
     def test_nav(self, admin_session, path):
         r = admin_session.get(f"{BASE}{path}", verify=False)
@@ -98,10 +116,18 @@ class TestServerAccess:
         password = "ViewerPass123!"
         page = admin_session.get(f"{BASE}/users", verify=False)
         csrf = _get_csrf(page.text)
-        created = admin_session.post(f"{BASE}/users", data={
-            "_csrf": csrf, "username": username, "email": f"{username}@example.test",
-            "password": password, "role": "viewer",
-        }, allow_redirects=False, verify=False)
+        created = admin_session.post(
+            f"{BASE}/users",
+            data={
+                "_csrf": csrf,
+                "username": username,
+                "email": f"{username}@example.test",
+                "password": password,
+                "role": "viewer",
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert created.status_code in (302, 303)
 
         try:
@@ -110,35 +136,63 @@ class TestServerAccess:
             assert username in access_page.text
             csrf = _get_csrf(access_page.text)
             viewer_id = re.search(r'data-testid="access-user-(\d+)"', access_page.text).group(1)
-            granted = admin_session.post(f"{BASE}/servers/1/access", data={
-                "_csrf": csrf, "user_id": viewer_id,
-                "view_files": "1",
-            }, allow_redirects=False, verify=False)
+            granted = admin_session.post(
+                f"{BASE}/servers/1/access",
+                data={
+                    "_csrf": csrf,
+                    "user_id": viewer_id,
+                    "view_files": "1",
+                },
+                allow_redirects=False,
+                verify=False,
+            )
             assert granted.status_code in (302, 303)
 
             viewer = requests.Session()
             login = viewer.get(f"{BASE}/login", verify=False)
             csrf = _get_csrf(login.text)
-            viewer.post(f"{BASE}/login", data={
-                "_csrf": csrf, "email": f"{username}@example.test", "password": password,
-            }, allow_redirects=False, verify=False)
+            viewer.post(
+                f"{BASE}/login",
+                data={
+                    "_csrf": csrf,
+                    "email": f"{username}@example.test",
+                    "password": password,
+                },
+                allow_redirects=False,
+                verify=False,
+            )
             assert viewer.get(f"{BASE}/servers/1/files", verify=False).status_code == 200
             assert viewer.get(f"{BASE}/json/servers/1/jobs", verify=False).status_code == 403
             server_page = viewer.get(f"{BASE}/servers/1", verify=False, allow_redirects=False)
             assert server_page.status_code == 200
             assert 'data-testid="console-panel"' not in server_page.text
             csrf = _get_csrf(viewer.get(f"{BASE}/servers/1/files", verify=False).text)
-            denied = viewer.post(f"{BASE}/servers/1/files/save", data={
-                "_csrf": csrf, "path": "server.properties", "content": "nope",
-            }, allow_redirects=False, verify=False)
+            denied = viewer.post(
+                f"{BASE}/servers/1/files/save",
+                data={
+                    "_csrf": csrf,
+                    "path": "server.properties",
+                    "content": "nope",
+                },
+                allow_redirects=False,
+                verify=False,
+            )
             assert denied.status_code == 403
         finally:
             page = admin_session.get(f"{BASE}/users", verify=False)
-            match = re.search(rf'<tr>.*?{re.escape(username)}.*?name="id" value="(\d+)".*?</tr>', page.text, re.S)
+            match = re.search(
+                rf'<tr>.*?{re.escape(username)}.*?name="id" value="(\d+)".*?</tr>', page.text, re.S
+            )
             if match:
-                admin_session.post(f"{BASE}/users/delete", data={
-                    "_csrf": _get_csrf(page.text), "id": match.group(1),
-                }, allow_redirects=False, verify=False)
+                admin_session.post(
+                    f"{BASE}/users/delete",
+                    data={
+                        "_csrf": _get_csrf(page.text),
+                        "id": match.group(1),
+                    },
+                    allow_redirects=False,
+                    verify=False,
+                )
 
 
 # --- servers ----------------------------------------------------------------
@@ -146,7 +200,13 @@ class TestServers:
     def test_list_shows_seeded(self, admin_session):
         r = admin_session.get(f"{BASE}/servers", verify=False)
         assert r.status_code == 200
-        for name in ["Survival SMP", "Bedrock Realm", "CS2 5v5 EU", "Rust Vanilla", "Creative Build"]:
+        for name in [
+            "Survival SMP",
+            "Bedrock Realm",
+            "CS2 5v5 EU",
+            "Rust Vanilla",
+            "Creative Build",
+        ]:
             assert name in r.text, f"missing seeded server: {name}"
 
     def test_detail(self, admin_session):
@@ -158,13 +218,27 @@ class TestServers:
         page = admin_session.get(f"{BASE}/servers/new", verify=False)
         assert 'data-testid="minecraft-version-picker"' in page.text
         csrf = _get_csrf(page.text)
-        node_id = re.search(r'<select name="node_id"[^>]*>\s*<option value="(\d+)"', page.text).group(1)
+        node_id = re.search(
+            r'<select name="node_id"[^>]*>\s*<option value="(\d+)"', page.text
+        ).group(1)
         port = 30000 + int(time.time()) % 10000
-        response = admin_session.post(f"{BASE}/servers", data={
-            "_csrf": csrf, "name": f"VersionPin_{int(time.time())}",
-            "game": "minecraft-java", "minecraft_version": "1.21.7", "loader_id": "",
-            "node_id": node_id, "port": port, "cpu_limit": 2, "ram_mb": 2048, "disk_gb": 5,
-        }, allow_redirects=False, verify=False)
+        response = admin_session.post(
+            f"{BASE}/servers",
+            data={
+                "_csrf": csrf,
+                "name": f"VersionPin_{int(time.time())}",
+                "game": "minecraft-java",
+                "minecraft_version": "1.21.7",
+                "loader_id": "",
+                "node_id": node_id,
+                "port": port,
+                "cpu_limit": 2,
+                "ram_mb": 2048,
+                "disk_gb": 5,
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert response.status_code in (302, 303)
         detail = admin_session.get(f"{BASE}{response.headers['Location']}", verify=False)
         assert "1.21.7" in detail.text
@@ -234,7 +308,9 @@ class TestModsEggs:
         r = admin_session.get(f"{BASE}/eggs", verify=False)
         assert r.status_code == 200
         # count deploy buttons as a rough egg count
-        assert r.text.count("egg-deploy-") >= 9, f"expected 9+ eggs, got {r.text.count('egg-deploy-')}"
+        assert r.text.count("egg-deploy-") >= 9, (
+            f"expected 9+ eggs, got {r.text.count('egg-deploy-')}"
+        )
 
     def test_egg_detail(self, admin_session):
         r = admin_session.get(f"{BASE}/eggs/1", verify=False)
@@ -291,11 +367,17 @@ class TestModsEggs:
         assert follow.status_code == 200
         if 'data-testid="credential-reveal"' not in follow.text:
             assert 'data-testid="db-provisioning-unconfigured"' in follow.text
-            pytest.skip("database provisioning credentials are not configured in this local environment")
+            pytest.skip(
+                "database provisioning credentials are not configured in this local environment"
+            )
         assert name in follow.text or f"apexnode_{db_name}" in follow.text
         assert 'data-testid="credential-reveal"' in follow.text
         assert password in follow.text
-        row_html = re.search(r'<tr data-testid="db-user-(\d+)"[^>]*>.*?' + re.escape(name) + r'.*?</tr>', follow.text, re.S)
+        row_html = re.search(
+            r'<tr data-testid="db-user-(\d+)"[^>]*>.*?' + re.escape(name) + r".*?</tr>",
+            follow.text,
+            re.S,
+        )
         assert row_html, "created database-user row not found"
         db_user_id = row_html.group(1)
         assert f'data-testid="rotate-db-password-{db_user_id}"' in follow.text
@@ -353,20 +435,36 @@ class TestModsEggs:
 
         changed = dict(payload, startup="java -jar updated-server.jar nogui")
         csrf = _get_csrf(follow.text)
-        preview = admin_session.post(f"{BASE}/eggs/preview", data={
-            "_csrf": csrf, "egg_json": json.dumps(changed),
-        }, allow_redirects=False, verify=False)
+        preview = admin_session.post(
+            f"{BASE}/eggs/preview",
+            data={
+                "_csrf": csrf,
+                "egg_json": json.dumps(changed),
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert preview.status_code == 200
         assert 'data-testid="egg-update-state"' in preview.text
         assert "Update available" in preview.text
         csrf = _get_csrf(preview.text)
-        updated = admin_session.post(f"{BASE}/eggs/import", data={
-            "_csrf": csrf, "egg_json": json.dumps(changed),
-        }, allow_redirects=False, verify=False)
+        updated = admin_session.post(
+            f"{BASE}/eggs/import",
+            data={
+                "_csrf": csrf,
+                "egg_json": json.dumps(changed),
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert updated.status_code in (200, 302, 303)
         confirmed = admin_session.get(f"{BASE}/eggs", verify=False)
         egg_name_position = confirmed.text.find(f"<h3>{egg_name}</h3>")
-        details_link = re.search(r'data-testid="egg-details-(\d+)"', confirmed.text[egg_name_position:]) if egg_name_position >= 0 else None
+        details_link = (
+            re.search(r'data-testid="egg-details-(\d+)"', confirmed.text[egg_name_position:])
+            if egg_name_position >= 0
+            else None
+        )
         assert details_link, f"updated egg details link not found: {egg_name}"
         details = admin_session.get(f"{BASE}/eggs/{details_link.group(1)}", verify=False)
         assert "updated-server.jar" in details.text

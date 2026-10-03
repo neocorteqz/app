@@ -1,4 +1,5 @@
 <?php
+
 /**
  * ApexNode Backup Runner
  * - Iterates enabled backup_schedules whose (last_run + interval) is due
@@ -7,6 +8,7 @@
  * - Applies retention (deletes old backups beyond N)
  * Runs continuously with a 30s sleep; managed by supervisor.
  */
+
 require_once __DIR__ . '/../app/db.php';
 $config = require __DIR__ . '/../config/config.php';
 $STATE_ROOT = rtrim((string)($config['state_root'] ?? '/var/lib/apexnode'), '/');
@@ -14,15 +16,19 @@ $STATE_ROOT = rtrim((string)($config['state_root'] ?? '/var/lib/apexnode'), '/')
 $BACKUP_ROOT = $STATE_ROOT . '/backups';
 @mkdir($BACKUP_ROOT, 0755, true);
 
-function log_line(string $sid, string $line, string $level = 'system'): void {
+function log_line(string $sid, string $line, string $level = 'system'): void
+{
     DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$sid, $line, $level]);
 }
 
-function run_backup(array $schedule, array $server): void {
+function run_backup(array $schedule, array $server): void
+{
     global $BACKUP_ROOT, $STATE_ROOT;
     $sid = (int)$server['id'];
     $wd = $server['work_dir'] ?: "$STATE_ROOT/servers/$sid";
-    if (!is_dir($wd)) { @mkdir($wd, 0755, true); }
+    if (!is_dir($wd)) {
+        @mkdir($wd, 0755, true);
+    }
     $stamp = date('Ymd-His');
     $name = "backup-{$stamp}.tar.gz";
     $out_dir = "$BACKUP_ROOT/$sid";
@@ -38,17 +44,21 @@ function run_backup(array $schedule, array $server): void {
     $cmd = sprintf('tar -czf %s -C %s . 2>&1', escapeshellarg($out_path), escapeshellarg($wd));
     exec($cmd, $out, $rc);
     if ($rc !== 0) {
-        DB::q('UPDATE backups SET status="failed", error=?, completed_at=NOW() WHERE id=?',
-            [substr(implode("\n", $out), 0, 900), $bid]);
-        log_line($sid, "[backup] FAILED: ".substr(implode(' ', $out), 0, 200), 'error');
+        DB::q(
+            'UPDATE backups SET status="failed", error=?, completed_at=NOW() WHERE id=?',
+            [substr(implode("\n", $out), 0, 900), $bid]
+        );
+        log_line($sid, "[backup] FAILED: " . substr(implode(' ', $out), 0, 200), 'error');
         return;
     }
     $size = filesize($out_path) ?: 0;
 
     // Optional S3 upload
     $remote = null;
-    if (($schedule['storage'] ?? 'local') === 's3'
-        && $schedule['s3_bucket'] && $schedule['s3_access_key'] && $schedule['s3_secret_key']) {
+    if (
+        ($schedule['storage'] ?? 'local') === 's3'
+        && $schedule['s3_bucket'] && $schedule['s3_access_key'] && $schedule['s3_secret_key']
+    ) {
         $env = [
             'AWS_ACCESS_KEY_ID=' . escapeshellarg($schedule['s3_access_key']),
             'AWS_SECRET_ACCESS_KEY=' . escapeshellarg($schedule['s3_secret_key']),
@@ -57,8 +67,11 @@ function run_backup(array $schedule, array $server): void {
         $s3_key = "apexnode/{$sid}/{$name}";
         $push = sprintf(
             '%s aws s3 cp %s s3://%s/%s %s 2>&1',
-            implode(' ', $env), escapeshellarg($out_path),
-            escapeshellarg($schedule['s3_bucket']), escapeshellarg($s3_key), $endpoint
+            implode(' ', $env),
+            escapeshellarg($out_path),
+            escapeshellarg($schedule['s3_bucket']),
+            escapeshellarg($s3_key),
+            $endpoint
         );
         exec($push, $out2, $rc2);
         if ($rc2 === 0) {
@@ -69,9 +82,11 @@ function run_backup(array $schedule, array $server): void {
         }
     }
 
-    DB::q('UPDATE backups SET status="completed", size_bytes=?, remote_url=?, completed_at=NOW() WHERE id=?',
-        [$size, $remote, $bid]);
-    log_line($sid, "[backup] Completed ".round($size/1024/1024, 2)."MB", 'system');
+    DB::q(
+        'UPDATE backups SET status="completed", size_bytes=?, remote_url=?, completed_at=NOW() WHERE id=?',
+        [$size, $remote, $bid]
+    );
+    log_line($sid, "[backup] Completed " . round($size / 1024 / 1024, 2) . "MB", 'system');
 
     // Retention: keep newest N
     $keep = (int)($schedule['retention'] ?: 7);
@@ -86,7 +101,9 @@ function run_backup(array $schedule, array $server): void {
                 continue;
             }
         }
-        if ($o['path'] && file_exists($o['path'])) @unlink($o['path']);
+        if ($o['path'] && file_exists($o['path'])) {
+            @unlink($o['path']);
+        }
         DB::q('DELETE FROM backups WHERE id=?', [$o['id']]);
     }
 }

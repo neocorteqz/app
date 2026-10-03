@@ -1,9 +1,13 @@
 <?php
+
 if (!function_exists('apex_load_config')) {
-    function apex_load_config(): array {
+    function apex_load_config(): array
+    {
         // Read configuration once per request (PDO and shared helpers reuse this array).
         static $cachedConfig = null;
-        if ($cachedConfig !== null) return $cachedConfig;
+        if ($cachedConfig !== null) {
+            return $cachedConfig;
+        }
         // ApexNode Configuration
         $dotenv = is_file(__DIR__ . '/.env') ? (parse_ini_file(__DIR__ . '/.env', false, INI_SCANNER_RAW) ?: []) : [];
         $local = is_file(__DIR__ . '/installed.php') ? require __DIR__ . '/installed.php' : [];

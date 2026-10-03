@@ -9,8 +9,8 @@
     <div class="section-title" style="margin-top:0">Credentials</div>
     <div class="form-group">
       <label>Bot Token</label>
-      <input type="text" name="token" value="<?= h($token) ?>" placeholder="MTA1…" data-testid="input-token">
-      <p class="mono muted" style="margin-top:6px">Create a bot at <a href="https://discord.com/developers/applications" target="_blank">discord.com/developers</a>, copy the token, invite it with `applications.commands` scope.</p>
+      <input type="password" name="token" value="" autocomplete="new-password" placeholder="MTA1…" data-testid="input-token">
+      <p class="mono muted" style="margin-top:6px">Create a bot at <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">discord.com/developers</a>, copy the token, and invite it with the applications.commands scope. Set the allowed guild ID; lifecycle commands require Manage Server permission there. Leave the token field blank to keep the saved token.</p>
     </div>
     <div class="grid-2">
       <div class="form-group"><label>Guild ID</label><input name="guild" value="<?= h($guild) ?>" data-testid="input-guild"></div>
@@ -38,8 +38,8 @@
     </table>
 
     <div class="section-title">Run the bot daemon</div>
-    <pre class="mono" style="background:#05070c;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto">cd /app/panel/discord-bot
+    <pre class="mono" style="background:#05070c;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto">cd &lt;your-panel-directory&gt;/discord-bot
 pip install -r requirements.txt
-DISCORD_BOT_TOKEN=… PANEL_URL=<?= h(($_SERVER['REQUEST_SCHEME'] ?? 'https').'://'.($_SERVER['HTTP_HOST'] ?? '')) ?> python bot.py</pre>
+DISCORD_BOT_TOKEN=… DISCORD_GUILD_ID=… python bot.py</pre>
   </div>
 </div>

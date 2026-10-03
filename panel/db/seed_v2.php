@@ -1,4 +1,5 @@
 <?php
+
 // Seed marketplace eggs (game templates)
 require_once __DIR__ . '/../app/db.php';
 
@@ -45,6 +46,8 @@ if ($existing === 0) {
 $rows = DB::all("SELECT s.id, s.game FROM servers s WHERE s.egg_id IS NULL");
 foreach ($rows as $r) {
     $egg = DB::one("SELECT id FROM eggs WHERE game=? ORDER BY featured DESC, id ASC LIMIT 1", [$r['game']]);
-    if ($egg) DB::q("UPDATE servers SET egg_id=? WHERE id=?", [$egg['id'], $r['id']]);
+    if ($egg) {
+        DB::q("UPDATE servers SET egg_id=? WHERE id=?", [$egg['id'], $r['id']]);
+    }
 }
 echo "Eggs backfilled.\n";

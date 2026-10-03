@@ -1,28 +1,35 @@
 <?php
+
 // Seed demo data: admin user, nodes, sample servers
 require_once __DIR__ . '/../app/db.php';
 
 // Admin user
 $hash = password_hash('admin123', PASSWORD_BCRYPT);
 try {
-    DB::q('INSERT IGNORE INTO users (username, email, password_hash, role) VALUES (?,?,?,?)',
-        ['admin','admin@apexnode.local',$hash,'admin']);
-} catch (Throwable $e) {}
+    DB::q(
+        'INSERT IGNORE INTO users (username, email, password_hash, role) VALUES (?,?,?,?)',
+        ['admin','admin@apexnode.local',$hash,'admin']
+    );
+} catch (Throwable $e) {
+}
 
 // Operator user
 $hash2 = password_hash('operator123', PASSWORD_BCRYPT);
 try {
-    DB::q('INSERT IGNORE INTO users (username, email, password_hash, role) VALUES (?,?,?,?)',
-        ['operator','ops@apexnode.local',$hash2,'operator']);
-} catch (Throwable $e) {}
+    DB::q(
+        'INSERT IGNORE INTO users (username, email, password_hash, role) VALUES (?,?,?,?)',
+        ['operator','ops@apexnode.local',$hash2,'operator']
+    );
+} catch (Throwable $e) {
+}
 
 $adminId = (int)DB::one('SELECT id FROM users WHERE username=?', ['admin'])['id'];
 
 // Nodes
 if ((int)DB::one('SELECT COUNT(*) c FROM nodes')['c'] === 0) {
-    DB::insert('nodes', ['name'=>'daemon-eu-01','hostname'=>'daemon-eu-01','ip'=>'10.10.20.11','cpu_cores'=>8,'ram_mb'=>16384,'disk_gb'=>500,'status'=>'online','latency_ms'=>8]);
-    DB::insert('nodes', ['name'=>'daemon-us-01','hostname'=>'daemon-us-01','ip'=>'10.10.30.12','cpu_cores'=>16,'ram_mb'=>32768,'disk_gb'=>1000,'status'=>'online','latency_ms'=>42]);
-    DB::insert('nodes', ['name'=>'daemon-ap-01','hostname'=>'daemon-ap-01','ip'=>'10.10.40.14','cpu_cores'=>4,'ram_mb'=>8192,'disk_gb'=>200,'status'=>'degraded','latency_ms'=>110]);
+    DB::insert('nodes', ['name' => 'daemon-eu-01','hostname' => 'daemon-eu-01','ip' => '10.10.20.11','cpu_cores' => 8,'ram_mb' => 16384,'disk_gb' => 500,'status' => 'online','latency_ms' => 8]);
+    DB::insert('nodes', ['name' => 'daemon-us-01','hostname' => 'daemon-us-01','ip' => '10.10.30.12','cpu_cores' => 16,'ram_mb' => 32768,'disk_gb' => 1000,'status' => 'online','latency_ms' => 42]);
+    DB::insert('nodes', ['name' => 'daemon-ap-01','hostname' => 'daemon-ap-01','ip' => '10.10.40.14','cpu_cores' => 4,'ram_mb' => 8192,'disk_gb' => 200,'status' => 'degraded','latency_ms' => 110]);
 }
 
 // Sample servers
@@ -37,11 +44,11 @@ if ((int)DB::one('SELECT COUNT(*) c FROM servers')['c'] === 0) {
     ];
     foreach ($seed as $r) {
         DB::insert('servers', [
-            'name'=>$r[0],'game'=>$r[1],'node_id'=>$r[2],'owner_id'=>$adminId,
-            'port'=>$r[3],'cpu_limit'=>$r[4],'ram_mb'=>$r[5],'disk_gb'=>$r[6],
-            'status'=>$r[7],'players_online'=>$r[8],'players_max'=>$r[9],
-            'cpu_usage'=>$r[7]==='online'?rand(15,55):0,
-            'ram_usage_mb'=>$r[7]==='online'?(int)($r[5]*rand(30,70)/100):0,
+            'name' => $r[0],'game' => $r[1],'node_id' => $r[2],'owner_id' => $adminId,
+            'port' => $r[3],'cpu_limit' => $r[4],'ram_mb' => $r[5],'disk_gb' => $r[6],
+            'status' => $r[7],'players_online' => $r[8],'players_max' => $r[9],
+            'cpu_usage' => $r[7] === 'online' ? rand(15, 55) : 0,
+            'ram_usage_mb' => $r[7] === 'online' ? (int)($r[5] * rand(30, 70) / 100) : 0,
         ]);
     }
     // Seed initial logs

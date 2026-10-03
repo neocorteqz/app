@@ -12,6 +12,7 @@ Covers:
   - Failure path with invalid modpack ref
   - Regression sanity (modpack preview, /dashboard, /servers, /servers/1, /mods, /eggs)
 """
+
 import os
 import re
 import time
@@ -20,6 +21,12 @@ from pathlib import Path
 import pymysql
 import pytest
 import requests
+
+# These historical suites require a disposable, configured game host.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("APEX_RUN_LIVE_TESTS") != "1",
+    reason="Set APEX_RUN_LIVE_TESTS=1 only for an explicitly provisioned disposable host",
+)
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "http://127.0.0.1:3001"
 
@@ -38,18 +45,26 @@ def admin_session():
     s = requests.Session()
     r = s.get(f"{BASE}/login", verify=False)
     csrf = _csrf(r.text)
-    r = s.post(f"{BASE}/login",
-               data={"_csrf": csrf, "email": "admin", "password": "admin123"},
-               allow_redirects=False, verify=False)
+    r = s.post(
+        f"{BASE}/login",
+        data={"_csrf": csrf, "email": "admin", "password": "admin123"},
+        allow_redirects=False,
+        verify=False,
+    )
     assert r.status_code in (302, 303), f"login failed: {r.status_code}"
     return s
 
 
 @pytest.fixture(scope="module")
 def db():
-    conn = pymysql.connect(host="127.0.0.1", user="apexnode", password="apex_local_dev",
-                           database="apexnode", cursorclass=pymysql.cursors.DictCursor,
-                           autocommit=True)
+    conn = pymysql.connect(
+        host="127.0.0.1",
+        user="apexnode",
+        password="apex_local_dev",
+        database="apexnode",
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
     yield conn
     conn.close()
 
@@ -64,11 +79,23 @@ def _deploy_server(admin_session, db, name, modpack_ref="adrenaserver", loader_i
     port = _next_port(db)
     r = admin_session.get(f"{BASE}/servers/new", verify=False)
     csrf = _csrf(r.text)
-    r = admin_session.post(f"{BASE}/servers", data={
-        "_csrf": csrf, "name": name, "game": "minecraft-java",
-        "loader_id": loader_id, "modpack_ref": modpack_ref,
-        "node_id": 1, "port": port, "cpu_limit": 2, "ram_mb": 2048, "disk_gb": 5,
-    }, allow_redirects=False, verify=False)
+    r = admin_session.post(
+        f"{BASE}/servers",
+        data={
+            "_csrf": csrf,
+            "name": name,
+            "game": "minecraft-java",
+            "loader_id": loader_id,
+            "modpack_ref": modpack_ref,
+            "node_id": 1,
+            "port": port,
+            "cpu_limit": 2,
+            "ram_mb": 2048,
+            "disk_gb": 5,
+        },
+        allow_redirects=False,
+        verify=False,
+    )
     assert r.status_code in (302, 303), r.text[:400]
     sid = int(re.search(r"/servers/(\d+)", r.headers["Location"]).group(1))
     return sid
@@ -78,8 +105,13 @@ def _enqueue_install(admin_session, sid):
     r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
     csrf = _csrf(r.text)
     t0 = time.perf_counter()
-    r = admin_session.post(f"{BASE}/servers/{sid}/modpack/install",
-                           data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=15)
+    r = admin_session.post(
+        f"{BASE}/servers/{sid}/modpack/install",
+        data={"_csrf": csrf},
+        allow_redirects=False,
+        verify=False,
+        timeout=15,
+    )
     elapsed = time.perf_counter() - t0
     return r, elapsed
 
@@ -98,15 +130,20 @@ class TestQueueHappyPath:
         TestQueueHappyPath.sid = sid
 
         r, elapsed = _enqueue_install(admin_session, sid)
-        print(f"enqueue elapsed: {elapsed*1000:.0f}ms")
-        assert r.status_code in (302, 303), f"expected redirect, got {r.status_code}: {r.text[:400]}"
+        print(f"enqueue elapsed: {elapsed * 1000:.0f}ms")
+        assert r.status_code in (302, 303), (
+            f"expected redirect, got {r.status_code}: {r.text[:400]}"
+        )
         assert r.headers["Location"].endswith(f"/servers/{sid}")
         assert elapsed < 3.0, f"enqueue took {elapsed:.2f}s (>3s)"
 
     def test_02_job_row_created(self, db):
         sid = TestQueueHappyPath.sid
         with db.cursor() as c:
-            c.execute("SELECT * FROM jobs WHERE target_id=%s AND target_kind='server' ORDER BY id DESC LIMIT 1", (sid,))
+            c.execute(
+                "SELECT * FROM jobs WHERE target_id=%s AND target_kind='server' ORDER BY id DESC LIMIT 1",
+                (sid,),
+            )
             row = c.fetchone()
         assert row, "no job row created"
         assert row["kind"] == "modpack_install"
@@ -123,7 +160,17 @@ class TestQueueHappyPath:
             assert r.status_code == 200, r.text[:200]
             j = r.json()
             # required fields
-            for k in ("id", "kind", "target_id", "target_kind", "status", "progress", "total", "pct", "message"):
+            for k in (
+                "id",
+                "kind",
+                "target_id",
+                "target_kind",
+                "status",
+                "progress",
+                "total",
+                "pct",
+                "message",
+            ):
                 assert k in j, f"missing field {k} in {j}"
             assert isinstance(j["pct"], int) and 0 <= j["pct"] <= 100
             last = j
@@ -175,22 +222,29 @@ class TestIdempotentEnqueue:
     def test_no_new_job_on_installed_server(self, admin_session, db):
         # Pick any server with modpack_status='installed'
         with db.cursor() as c:
-            c.execute("SELECT id, name FROM servers WHERE modpack_status='installed' ORDER BY id DESC LIMIT 1")
+            c.execute(
+                "SELECT id, name FROM servers WHERE modpack_status='installed' ORDER BY id DESC LIMIT 1"
+            )
             row = c.fetchone()
         assert row, "no installed server available"
         sid = row["id"]
         with db.cursor() as c:
-            c.execute("SELECT COUNT(*) AS n FROM jobs WHERE target_id=%s AND target_kind='server'", (sid,))
+            c.execute(
+                "SELECT COUNT(*) AS n FROM jobs WHERE target_id=%s AND target_kind='server'", (sid,)
+            )
             before = c.fetchone()["n"]
         r, elapsed = _enqueue_install(admin_session, sid)
         assert r.status_code in (302, 303)
         assert elapsed < 3.0
         # Follow the redirect and check flash
-        r2 = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
+        response = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
+        assert response.status_code == 200
         # Flash consumed on read; check present in this response OR next
         # (flash is one-shot; just ensure no new job row)
         with db.cursor() as c:
-            c.execute("SELECT COUNT(*) AS n FROM jobs WHERE target_id=%s AND target_kind='server'", (sid,))
+            c.execute(
+                "SELECT COUNT(*) AS n FROM jobs WHERE target_id=%s AND target_kind='server'", (sid,)
+            )
             after = c.fetchone()["n"]
         assert after == before, f"unexpected new job row: before={before} after={after}"
 
@@ -201,13 +255,18 @@ class TestFailurePath:
         ts = int(time.time())
         name = f"QueueFailTest_{ts}"
         # Deploy with a valid loader but a bogus ref
-        sid = _deploy_server(admin_session, db, name, modpack_ref="definitely-not-a-real-pack-slug-abc")
+        sid = _deploy_server(
+            admin_session, db, name, modpack_ref="definitely-not-a-real-pack-slug-abc"
+        )
         r, elapsed = _enqueue_install(admin_session, sid)
         assert r.status_code in (302, 303)
         assert elapsed < 3.0
 
         with db.cursor() as c:
-            c.execute("SELECT id FROM jobs WHERE target_id=%s AND target_kind='server' ORDER BY id DESC LIMIT 1", (sid,))
+            c.execute(
+                "SELECT id FROM jobs WHERE target_id=%s AND target_kind='server' ORDER BY id DESC LIMIT 1",
+                (sid,),
+            )
             jid = c.fetchone()["id"]
 
         deadline = time.time() + 60
@@ -230,8 +289,10 @@ class TestFailurePath:
         assert srow["modpack_status"] == "failed", srow
 
         with db.cursor() as c:
-            c.execute("SELECT line FROM server_logs WHERE server_id=%s AND line LIKE %s",
-                      (sid, "%[modpack] ✗ FAILED%"))
+            c.execute(
+                "SELECT line FROM server_logs WHERE server_id=%s AND line LIKE %s",
+                (sid, "%[modpack] ✗ FAILED%"),
+            )
             logs = c.fetchall()
         assert logs, "no [modpack] ✗ FAILED log line"
 
@@ -239,14 +300,22 @@ class TestFailurePath:
 # ---------------- Regression sanity ----------------
 class TestRegression:
     def test_modpack_preview_modrinth(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview",
-                              params={"source": "modrinth", "ref": "fabulously-optimized"}, verify=False, timeout=20)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview",
+            params={"source": "modrinth", "ref": "fabulously-optimized"},
+            verify=False,
+            timeout=20,
+        )
         assert r.status_code == 200
         assert r.json().get("ok") is True
 
     def test_modpack_preview_curseforge(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview",
-                              params={"source": "curseforge", "ref": "all-the-mods-9"}, verify=False, timeout=30)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview",
+            params={"source": "curseforge", "ref": "all-the-mods-9"},
+            verify=False,
+            timeout=30,
+        )
         assert r.status_code == 200
         # CurseForge may fail if no api key — still return 200 with ok=false; accept both
         assert "ok" in r.json()

@@ -35,7 +35,7 @@
   const address = document.getElementById('join-address');
   async function refresh() {
     try {
-      const response = await fetch(apexUrl('/api/public/join/<?= h($server[')token']) ?>', { cache: 'no-store' });
+      const response = await fetch(apexUrl('/api/public/join/<?= h($server['token']) ?>'), { cache: 'no-store' });
       if (!response.ok) return;
       const data = await response.json();
       status.textContent = data.status.toUpperCase();

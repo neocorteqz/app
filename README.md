@@ -2,7 +2,7 @@
 
 **Beta version 0.0.1**
 
-ApexNode is a self-hosted Linux control panel for deploying and operating game servers. It currently supports Minecraft Java and Bedrock, Counter-Strike 2, and Rust workflows. The panel combines a PHP web application, a Python daemon, MariaDB, Redis, and systemd services.
+ApexNode is a self-hosted Linux control panel for deploying and operating game servers. It includes Minecraft Java runtime support and experimental Bedrock, Counter-Strike 2, and Rust workflows. The panel combines a PHP web application, a Python daemon, MariaDB, Redis, and systemd services.
 
 > **Beta disclaimer:** ApexNode is beta software. Features, database schemas, and installer behavior can change between releases. Do not use it as the sole control plane for valuable or production game data. Keep independent backups, test restores, restrict administrative access, and report problems before relying on the panel.
 
@@ -37,7 +37,7 @@ The upload installer assumes these dependencies are already installed. It checks
 | Browser | A current browser with JavaScript enabled. |
 | Optional acceleration | PHP OPcache, enabled by your hosting provider. The panel also reuses configuration/user/theme reads per request, reuses PDO connections, and caches static interface assets in the browser. |
 
-For **game-server operations**, also have Python 3 with the packages in `panel/daemon/requirements.txt`, the ApexNode daemon running on the same machine, compatible game runtimes (Java for Minecraft Java, etc.), writable shared server storage, and the backup runner for scheduled backups. Backup creation/restore also needs `tar`/gzip and PHP `exec` enabled; S3 backups additionally need the AWS CLI. Database-user provisioning is optional and needs separately configured `DB_PROVISIONER_USER` / `DB_PROVISIONER_PASS` credentials with database/user creation privileges. Redis and systemd are used by the legacy full-host installer but are not prerequisites for the PHP panel's upload wizard. Node.js/npm and Composer are not required to install the PHP panel.
+For **game-server operations**, also have Python 3.10 or newer with the packages in `panel/daemon/requirements.txt`, the ApexNode daemon running on the same machine, compatible game runtimes (Java for Minecraft Java, etc.), writable shared server storage, and the backup runner for scheduled backups. Backup creation/restore also needs `tar`/gzip and PHP `exec` enabled; S3 backups additionally need the AWS CLI. Database-user provisioning is optional and needs separately configured `DB_PROVISIONER_USER` / `DB_PROVISIONER_PASS` credentials with database/user creation privileges. Redis and systemd are used by the legacy full-host installer but are not prerequisites for the PHP panel's upload wizard. Node.js/npm and Composer are not required to install the PHP panel.
 
 ### Supported operating systems (legacy full-host installer)
 
@@ -251,3 +251,35 @@ Repository: [github.com/neocorteqz/app](https://github.com/neocorteqz/app)
 Keep the daemon on `127.0.0.1:8001`; its API assumes the PHP panel enforces authentication and server permissions. Do not expose it through a public port or a separate reverse proxy. Panel daemon proxy controls require POST, a valid CSRF token and control permission; reads require the corresponding account/server access. Trusted HTTPS forwarding headers are accepted only from a loopback proxy, which must overwrite those headers rather than preserve client-provided values. For a separate proxy host, configure HTTPS at the PHP web server rather than trusting arbitrary client headers.
 
 Modpack downloads are restricted to HTTPS on the explicit download-host allowlist in `panel/daemon/pack_resolver.py`. Redirect destinations are checked too; unknown custom download hosts are rejected. Modpack paths cannot escape the server directory, including through existing symlinks. Restart an already-running daemon after deploying these changes, and confirm its listener remains on loopback.
+
+
+## Runtime capabilities and installation checks
+
+The browser wizard installs the PHP panel without command-line access. It cannot provision the game daemon or upgrade an existing database. See [INSTALL.md](INSTALL.md) for the upload checklist, upgrade precautions, and Discord setup.
+
+| Runtime | Current behavior |
+| --- | --- |
+| Paper | Downloads and verifies the selected version using PaperMC SHA256 metadata. |
+| Purpur | Downloads a Purpur JAR; verify the installed version before changing an existing server. |
+| Vanilla | Currently uses Paper's vanilla-compatible runtime, not the Mojang server binary. |
+| Forge, NeoForge, Fabric, Quilt, modpack loaders | Startup reports an explicit unsupported-bootstrap error. Pack download support does not imply a working modded runtime. |
+| Bedrock, CS2, Rust | Run the bundled simulator. Real game installation is not implemented. |
+
+A successful process launch confirms that the process survived its initial startup check; it does not prove game readiness. Discord start/stop/restart commands require the configured guild and the user's Manage Server permission, and dispatch to the local daemon instead of changing database status directly.
+
+## Repository checks
+
+PHP application code follows PSR-12 using `phpcs.xml`; shared bootstrap side effects and line length are explicitly excluded. Python follows `ruff.toml`; JavaScript/CSS/JSON use Prettier and `.editorconfig`. Run these developer checks from the repository root (these tools are not browser-install dependencies):
+
+```bash
+phpcs
+ruff check .
+ruff format --check .
+npx prettier --check 'frontend/**/*.{js,jsx,css,json,html}' 'panel/public/assets/*.{js,css}'
+python3 tests/panel/test_download_security.py
+python3 tests/panel/test_runtime_quality.py
+python3 tests/panel/browser_install.py
+cd frontend && yarn install --frozen-lockfile && yarn build
+```
+
+The browser test needs a disposable MySQL/MariaDB database and PHP with PDO MySQL/cURL. Its default database is `apex_setup_test`; override `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_NAME`, `TEST_DB_USER`, and `TEST_DB_PASS` for your test environment. Never point it at production data. Historical `backend/tests` require a separately running integration host and are skipped unless `APEX_RUN_LIVE_TESTS=1` is set. The React/FastAPI directories are a separate scaffold; they are not required by the PHP upload installer. See [docs/REVIEW.md](docs/REVIEW.md) for review scope and validation limits.

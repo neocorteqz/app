@@ -1,13 +1,17 @@
 <?php
+
 namespace App\Controllers;
 
 use DB;
 
-class Auth {
-    public function showLogin() {
+class Auth
+{
+    public function showLogin()
+    {
         \view('auth/login', ['title' => 'Sign in']);
     }
-    public function login() {
+    public function login()
+    {
         \check_csrf();
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -19,10 +23,11 @@ class Auth {
         session_regenerate_id(true);
         $_SESSION['csrf'] = bin2hex(random_bytes(24));
         $_SESSION['uid'] = $u['id'];
-        \log_activity('login', 'user:'.$u['username']);
+        \log_activity('login', 'user:' . $u['username']);
         \redirect('/dashboard');
     }
-    public function showRegister() {
+    public function showRegister()
+    {
         // Only allow if no users exist (first-run) or if admin invites
         $count = (int)DB::one('SELECT COUNT(*) c FROM users')['c'];
         if ($count > 0 && (!\auth_user() || \auth_user()['role'] !== 'admin')) {
@@ -31,7 +36,8 @@ class Auth {
         }
         \view('auth/register', ['title' => 'Register']);
     }
-    public function register() {
+    public function register()
+    {
         \check_csrf();
         $count = (int)DB::one('SELECT COUNT(*) c FROM users')['c'];
         $isFirst = $count === 0;
@@ -60,14 +66,15 @@ class Auth {
             session_regenerate_id(true);
             $_SESSION['csrf'] = bin2hex(random_bytes(24));
             $_SESSION['uid'] = $id;
-            \log_activity('bootstrap-admin', 'user:'.$username);
+            \log_activity('bootstrap-admin', 'user:' . $username);
             \flash('success', 'Welcome — you are now the first admin.');
             \redirect('/dashboard');
         }
         \flash('success', 'User created.');
         \redirect('/users');
     }
-    public function logout() {
+    public function logout()
+    {
         \check_csrf();
         \log_activity('logout');
         session_destroy();
