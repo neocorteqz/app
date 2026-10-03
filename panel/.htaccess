@@ -1,0 +1,14 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+RewriteRule ^(?:app|config|db|daemon|scripts|install|views|storage)(?:/|$) - [F,L,NC]
+RewriteRule (^|/)\. - [F,L]
+RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L,QSA]
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$">
+        Header set Cache-Control "public, max-age=0, must-revalidate"
+    </FilesMatch>
+</IfModule>

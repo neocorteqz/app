@@ -23,7 +23,7 @@ class PublicJoin {
         $scheme = \is_https_request() ? 'https' : 'http';
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         if (!preg_match('/^[A-Za-z0-9.:[\]-]+$/', $host)) $host = 'localhost';
-        $server['share_url'] = $scheme . '://' . $host . '/join/' . $token;
+        $server['share_url'] = $scheme . '://' . $host . \url('/join/') . $token;
         \view('servers/join', ['title'=>'Join '.$server['name'], 'server'=>$server]);
     }
 

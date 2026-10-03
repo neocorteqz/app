@@ -1,6 +1,6 @@
 <?php
 // Seed demo data: admin user, nodes, sample servers
-require_once __DIR__ . '/../app/DB.php';
+require_once __DIR__ . '/../app/db.php';
 
 // Admin user
 $hash = password_hash('admin123', PASSWORD_BCRYPT);

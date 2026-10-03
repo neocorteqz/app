@@ -24,7 +24,22 @@ Some game runtimes and integrations are still limited or experimental. Review th
 
 ## Requirements
 
-### Supported operating systems
+### Dependencies to have ready before browser installation
+
+The upload installer assumes these dependencies are already installed. It checks requirements and configures the application; it does not install packages or run commands.
+
+| Dependency | Required setup |
+| --- | --- |
+| PHP | PHP 8.0 or newer with PDO, `pdo_mysql`, cURL, sessions, JSON and password hashing. PHP must be able to write the panel's `config/` directory and create `storage/`. |
+| Database | MySQL 8.0+ or MariaDB 10.5+, an empty database, and a database user with SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX and REFERENCES privileges on that database. |
+| Web server | Apache 2.4 with `mod_rewrite`, directory overrides enabled for `.htaccess`, and PHP configured; or an existing Nginx/Caddy configuration with front-controller routing and private-file protection. |
+| HTTPS | A working SSL certificate for the panel URL before entering credentials. |
+| Browser | A current browser with JavaScript enabled. |
+| Optional acceleration | PHP OPcache, enabled by your hosting provider. The panel also reuses configuration/user/theme reads per request, reuses PDO connections, and caches static interface assets in the browser. |
+
+For **game-server operations**, also have Python 3 with the packages in `panel/daemon/requirements.txt`, the ApexNode daemon running on the same machine, compatible game runtimes (Java for Minecraft Java, etc.), writable shared server storage, and the backup runner for scheduled backups. Backup creation/restore also needs `tar`/gzip and PHP `exec` enabled; S3 backups additionally need the AWS CLI. Database-user provisioning is optional and needs separately configured `DB_PROVISIONER_USER` / `DB_PROVISIONER_PASS` credentials with database/user creation privileges. Redis and systemd are used by the legacy full-host installer but are not prerequisites for the PHP panel's upload wizard. Node.js/npm and Composer are not required to install the PHP panel.
+
+### Supported operating systems (legacy full-host installer)
 
 - Debian 12 or newer
 - Ubuntu 22.04 LTS or newer
@@ -47,7 +62,25 @@ Prefer a recent high-clock CPU for Minecraft, SSD/NVMe storage, and enough memor
 
 ## Installation
 
-### Before you start
+For an existing host with the dependencies above, use the browser upload method first. The later SSH instructions are an optional full-host provisioning alternative.
+
+### Upload and install through your browser (no SSH)
+
+For the **web panel**, use existing PHP hosting with PHP 8.0+, PDO MySQL, cURL, HTTPS, and MySQL 8.0+ or MariaDB 10.5+. Apache must allow `.htaccess` with rewrite support.
+
+1. Download the repository ZIP and upload **the contents of `panel/`**, including `.htaccess`, into your chosen web directory using your hosting file manager or FTP. For example, `public_html/games/` serves the panel at `https://example.com/games/`.
+2. In your hosting dashboard, create an **empty database** and a database user with privileges on that database. No database-root account is needed.
+3. Make `config/` and the uploaded panel directory writable by PHP using your hosting file manager. Avoid world-writable permissions.
+4. Open `https://example.com/games/install.php`. The wizard checks requirements, asks for the database details and your own administrator credentials, applies the bundled schema, and creates local storage. No Composer, npm, shell commands, Redis, or dependency downloads are required for panel installation.
+5. Follow the sign-in link. Installation locks automatically. Delete the root and `public/` copies of `install.php` with your file manager when finished.
+
+A dedicated domain can use the same upload at its document root. If your provider lets you set the document root, pointing it to `panel/public/` keeps the application code outside the served directory. Nginx hosts must configure an index.php front controller and deny access to private directories/dotfiles through their hosting dashboard or provider; Nginx does not read `.htaccess`. Do not expose the full panel directory on a host that ignores these protection rules.
+
+The wizard creates only your chosen administrator and bundled templates/loaders. It does not create demo users or sample servers. Failed installation can be retried with the same database and administrator details; existing databases are refused on the first attempt. Configuration is stored in a protected PHP file and is not printed back to the browser. Use a fresh empty database for a new installation; this wizard is not an upgrade tool.
+
+**Game hosting is separate:** PHP file uploads cannot install system packages, Python services, Java, or game processes. The current daemon uses a local loopback connection, so full game operations require a daemon on the same machine and access from PHP to its server files. Ordinary shared hosting can host the panel UI, but will usually need provider assistance or a VPS for the daemon. Scheduled backups also require the existing backup runner. The root installer below remains available for full host provisioning.
+
+### Before you start (full host installation)
 
 1. Choose a clean Linux server or confirm which web server/control panel already owns ports 80 and 443.
 2. Point the domain's DNS `A`/`AAAA` record at the server if you plan to use a domain.
@@ -111,7 +144,7 @@ For cPanel and DirectAdmin, supply `--panel-user ACCOUNT` when configuring a dom
 - Public Nginx plus PHP-FPM only for standalone mode. Existing web servers are not intentionally replaced.
 - An integration helper under the selected integration-script directory for Apache, Nginx, Caddy, cPanel, DirectAdmin, Plesk, or manual proxy setup.
 
-Review installer output and keep generated database credentials private. The initial panel login is `admin` / `admin123`; sign in immediately and change the password before exposing the panel to other users.
+Review installer output and keep generated database credentials private. For the legacy full-host installer, the initial panel login is `admin` / `admin123`; sign in immediately and change the password before exposing the panel to other users.
 
 ### Web server integrations
 
@@ -131,7 +164,7 @@ Confirm HTTPS/certificate behavior for your specific domain and hosting-panel ve
 ## First Login and Basic Use
 
 1. Open the URL printed by the installer. Standalone typically uses `http://SERVER_IP:PORT`; hosted-panel mode uses the configured domain.
-2. Sign in with `admin` / `admin123` and immediately set a unique password.
+2. For browser installation, sign in with the administrator details you chose. For the legacy full-host installer, sign in with `admin` / `admin123` and immediately set a unique password.
 3. Review nodes, games, loaders, eggs, and resource limits.
 4. Deploy a server and select a Minecraft Java release where applicable.
 5. Start the server and watch job status and console. First launches can take time while JARs or packs download.
@@ -208,3 +241,7 @@ free -h
 Open a GitHub issue for bugs, install problems, or suggestions: [github.com/neocorteqz/app/issues](https://github.com/neocorteqz/app/issues). Include OS/version, chosen web-server integration, sanitized installer output, and relevant service logs. Never include passwords, API keys, cookies, or `.env` contents.
 
 Repository: [github.com/neocorteqz/app](https://github.com/neocorteqz/app)
+
+## PHP application structure and caching
+
+`panel/app/includes.php` is the shared web bootstrap for sessions, common helpers, authentication and controller loading. `panel/app/db.php` owns PDO connections and query helpers. Configuration, signed-in user details and theme data are reused within each request; authorization and live game state are refreshed on new requests. Static assets use browser revalidation, and the PWA cache changes when the CSS/JavaScript changes. Live status and console polling pause in hidden tabs and avoid overlapping requests. File browsing writes the server's work directory only when it changes.

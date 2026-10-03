@@ -1,6 +1,6 @@
 <div class="between">
   <div><div class="section-title" style="margin:0">Access Control</div><h1><?= h($server['name']) ?></h1></div>
-  <a href="/servers/<?= (int)$server['id'] ?>" class="btn">← Server</a>
+  <a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$server['id'] ?>" class="btn">← Server</a>
 </div>
 
 <div class="card" style="margin-top:16px" data-testid="server-access-panel">
@@ -14,7 +14,7 @@
         <?php foreach (['view_server'=>'View server', 'view_console'=>'View console', 'control_server'=>'Control', 'view_files'=>'View files', 'manage_files'=>'Manage files', 'view_backups'=>'View backups', 'manage_backups'=>'Manage backups'] as $key=>$label): ?>
           <td><label title="<?= h($label) ?>"><input form="<?= h($formId) ?>" type="checkbox" name="<?= h($key) ?>" value="1" <?= !empty($access[$key])?'checked':'' ?> aria-label="<?= h($label) ?>"></label></td>
         <?php endforeach; ?>
-        <td><form id="<?= h($formId) ?>" method="post" action="/servers/<?= (int)$server['id'] ?>/access" style="margin:0">
+        <td><form id="<?= h($formId) ?>" method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$server['id'] ?>/access" style="margin:0">
           <?= csrf_field() ?><input type="hidden" name="user_id" value="<?= (int)$access['id'] ?>">
           <button class="btn btn-sm btn-primary">Save</button>
         </form></td>

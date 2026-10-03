@@ -44,7 +44,15 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-require_once __DIR__ . '/DB.php';
+require_once __DIR__ . '/db.php';
+spl_autoload_register(static function (string $class): void {
+    $prefix = 'App\\Controllers\\';
+    if (!str_starts_with($class, $prefix)) return;
+    $name = substr($class, strlen($prefix));
+    if (!preg_match('/^[A-Za-z]+$/D', $name)) return;
+    $file = __DIR__ . '/Controllers/' . $name . '.php';
+    if (is_file($file)) require_once $file;
+});
 
 function apex_state_root(): string {
     $config = require __DIR__ . '/../config/config.php';
@@ -57,11 +65,20 @@ function h(?string $s): string {
 
 function e(string $s): string { return h($s); }
 
+function apex_base_path(): string {
+    $config = require __DIR__ . '/../config/config.php';
+    return rtrim((string)$config['base_path'], '/');
+}
+
 function url(string $path = ''): string {
-    return '/' . ltrim($path, '/');
+    return apex_base_path() . '/' . ltrim($path, '/');
 }
 
 function redirect(string $to): void {
+    if (str_starts_with($to, '/') && !str_starts_with($to, '//')) {
+        $base = apex_base_path();
+        if ($base !== '' && $to !== $base && !str_starts_with($to, $base . '/')) $to = url($to);
+    }
     header('Location: ' . $to);
     exit;
 }
@@ -87,8 +104,12 @@ function check_csrf(): void {
 }
 
 function auth_user(): ?array {
+    static $cachedId = null, $cachedUser = null;
+    $uid = (int)($_SESSION['uid'] ?? 0);
+    if ($uid !== 0 && $cachedId === $uid) return $cachedUser;
     if (!empty($_SESSION['uid'])) {
-        return DB::one('SELECT id, username, email, role FROM users WHERE id=?', [$_SESSION['uid']]);
+        $cachedId = $uid;
+        return $cachedUser = DB::one('SELECT id, username, email, role FROM users WHERE id=?', [$uid]);
     }
     return null;
 }
@@ -151,8 +172,11 @@ function user_theme(): array {
     $u = auth_user();
     $defaults = ['accent'=>'#00F0FF','radius'=>'12px','density'=>'comfortable','mode'=>'dark','font'=>'Outfit'];
     if (!$u) return $defaults;
-    $t = DB::one('SELECT accent, radius, density, mode, font FROM user_themes WHERE user_id=?', [$u['id']]);
-    return $t ?: $defaults;
+    static $themes = [];
+    if (!isset($themes[$u['id']])) {
+        $themes[$u['id']] = DB::one('SELECT accent, radius, density, mode, font FROM user_themes WHERE user_id=?', [$u['id']]) ?: $defaults;
+    }
+    return $themes[$u['id']];
 }
 
 function view(string $name, array $data = []): void {

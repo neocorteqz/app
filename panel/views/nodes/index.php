@@ -17,7 +17,7 @@
           <td><span class="status status-<?= $n['status'] === 'online' ? 'online':'offline' ?>"><?= strtoupper($n['status']) ?></span></td>
           <td>
             <?php if (($user['role'] ?? '')==='admin' && (int)$n['srv_count']===0): ?>
-              <form method="post" action="/nodes/delete" data-confirm="Remove node?" style="margin:0"><?= csrf_field() ?>
+              <form method="post" action="<?= h(apex_base_path()) ?>/nodes/delete" data-confirm="Remove node?" style="margin:0"><?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
                 <button class="btn btn-sm btn-danger">✕</button>
               </form>
@@ -31,7 +31,7 @@
   <?php if (($user['role'] ?? '') === 'admin'): ?>
   <div class="card">
     <div class="card-title"><h3>Register new node</h3></div>
-    <form method="post" action="/nodes" data-testid="node-form">
+    <form method="post" action="<?= h(apex_base_path()) ?>/nodes" data-testid="node-form">
       <?= csrf_field() ?>
       <div class="grid-2">
         <div class="form-group"><label>Name</label><input name="name" required></div>

@@ -8,7 +8,7 @@
     </h1>
     <p class="muted"><?= h($l['tagline']) ?></p>
   </div>
-  <a href="/mods?game=<?= h($l['game']) ?>" class="btn">← Back</a>
+  <a href="<?= h(apex_base_path()) ?>/mods?game=<?= h($l['game']) ?>" class="btn">← Back</a>
 </div>
 
 <div class="grid-2" style="margin-top:16px">
@@ -26,7 +26,7 @@
     <?php endif; ?>
   </div>
 
-  <form id="deploy" method="post" action="/servers" class="card" data-testid="mod-deploy-form">
+  <form id="deploy" method="post" action="<?= h(apex_base_path()) ?>/servers" class="card" data-testid="mod-deploy-form">
     <?= csrf_field() ?>
     <input type="hidden" name="game" value="<?= h($l['game']) ?>">
     <input type="hidden" name="loader_id" value="<?= (int)$l['id'] ?>">

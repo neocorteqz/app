@@ -7,7 +7,7 @@
  * - Applies retention (deletes old backups beyond N)
  * Runs continuously with a 30s sleep; managed by supervisor.
  */
-require_once __DIR__ . '/../app/DB.php';
+require_once __DIR__ . '/../app/db.php';
 $config = require __DIR__ . '/../config/config.php';
 $STATE_ROOT = rtrim((string)($config['state_root'] ?? '/var/lib/apexnode'), '/');
 

@@ -7,22 +7,24 @@ class Pwa {
         echo json_encode([
             'name' => 'ApexNode Panel',
             'short_name' => 'ApexNode',
-            'start_url' => '/dashboard',
+            'start_url' => \url('/dashboard'),
             'display' => 'standalone',
             'background_color' => '#090A0F',
             'theme_color' => '#00F0FF',
             'description' => 'Tactical game server control tower.',
             'icons' => [
-                ['src' => '/assets/icon-192.svg', 'sizes' => '192x192', 'type' => 'image/svg+xml'],
-                ['src' => '/assets/icon-512.svg', 'sizes' => '512x512', 'type' => 'image/svg+xml'],
+                ['src' => \url('/assets/icon-192.svg'), 'sizes' => '192x192', 'type' => 'image/svg+xml'],
+                ['src' => \url('/assets/icon-512.svg'), 'sizes' => '512x512', 'type' => 'image/svg+xml'],
             ],
         ], JSON_UNESCAPED_SLASHES);
     }
     public function serviceWorker() {
         header('Content-Type: application/javascript');
+        $assets = json_encode(array_map('url', ['/assets/app.css', '/assets/app.js', '/manifest.webmanifest']));
+        $version = substr(hash('sha256', \apex_base_path() . hash_file('sha256', __DIR__ . '/../../public/assets/app.css') . hash_file('sha256', __DIR__ . '/../../public/assets/app.js')), 0, 16);
         echo <<<JS
-        const CACHE = 'apex-v1';
-        const ASSETS = ['/assets/app.css', '/assets/app.js', '/manifest.webmanifest'];
+        const CACHE = 'apex-$version';
+        const ASSETS = $assets;
         self.addEventListener('install', (e) => {
           e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
           self.skipWaiting();

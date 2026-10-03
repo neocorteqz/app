@@ -1,3 +1,8 @@
+<div class="card" style="margin-bottom:16px">
+  <h2>Upload and install the web panel</h2>
+  <p>With PHP, MySQL/MariaDB and HTTPS already available, upload the contents of the panel directory to your chosen web directory and open <code>install.php</code> in your browser. Enter the empty database connection details and create your administrator account. No command line is needed for this method.</p>
+  <p class="muted">This panel is already installed. The host-provisioning tools below are optional for preparing a new game-server machine; they require administrator access to that host.</p>
+</div>
 <div class="between"><div><div class="section-title" style="margin:0">Deployment</div><h1 data-testid="page-title">Install on Linux Server</h1><p class="muted">Install on a bare server or behind cPanel, DirectAdmin, Plesk, or an existing Nginx host.</p></div></div>
 
 <div class="grid-2" style="margin-top:16px">

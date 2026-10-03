@@ -17,7 +17,7 @@
       <tr data-testid="job-row-<?= (int)$j['id'] ?>">
         <td class="mono">#<?= (int)$j['id'] ?></td>
         <td><span class="chip"><?= h($j['kind']) ?></span></td>
-        <td><?= $j['server_name'] ? '<a href="/servers/'.(int)$j['target_id'].'">'.h($j['server_name']).'</a>' : '—' ?></td>
+        <td><?= $j['server_name'] ? '<a href="'.h(url('/servers/')).(int)$j['target_id'].'">'.h($j['server_name']).'</a>' : '—' ?></td>
         <td><span class="status status-<?= $cls ?>" data-testid="job-status-<?= (int)$j['id'] ?>"><?= strtoupper($j['status']) ?></span></td>
         <td style="min-width:180px">
           <div class="meter"><span style="width:<?= $pct ?>%"></span></div>
@@ -27,7 +27,7 @@
         <td class="mono muted" style="font-size:11px"><?= h($j['created_at']) ?></td>
         <td>
           <?php if (in_array($j['status'], ['queued','running'])): ?>
-            <form method="post" action="/jobs/<?= (int)$j['id'] ?>/cancel" data-confirm="Cancel this job?" style="margin:0">
+            <form method="post" action="<?= h(apex_base_path()) ?>/jobs/<?= (int)$j['id'] ?>/cancel" data-confirm="Cancel this job?" style="margin:0">
               <?= csrf_field() ?>
               <button class="btn btn-sm btn-danger" data-testid="cancel-job-<?= (int)$j['id'] ?>">✕ Cancel</button>
             </form>
@@ -48,7 +48,7 @@ setInterval(async () => {
   document.querySelectorAll('tr[data-testid^=job-row-]').forEach(async (row) => {
     const id = row.dataset.testid.replace('job-row-', '');
     try {
-      const r = await fetch('/json/jobs/' + id);
+      const r = await fetch(apexUrl('/json/jobs/') + id);
       if (!r.ok) return;
       const j = await r.json();
       const pill = row.querySelector('[data-testid=job-status-' + id + ']');

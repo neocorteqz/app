@@ -3,6 +3,9 @@
 class DB {
     private static ?PDO $pdo = null;
     private static ?PDO $provisioner = null;
+    public static function setConnection(PDO $pdo): void {
+        self::$pdo = $pdo;
+    }
     public static function conn(): PDO {
         if (self::$pdo === null) {
             $c = require __DIR__ . '/../config/config.php';

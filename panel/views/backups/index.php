@@ -13,8 +13,8 @@ function fmt_bytes2($b) {
     <p class="muted">Snapshot the server working dir. Local snapshots are stored in <?= h(apex_state_root()) ?>/backups. Optional S3-compatible remote storage.</p>
   </div>
   <div class="row">
-    <a href="/servers/<?= (int)$s['id'] ?>" class="btn">← Console</a>
-    <form method="post" action="/servers/<?= (int)$s['id'] ?>/backups/run" style="margin:0">
+    <a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>" class="btn">← Console</a>
+    <form method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/backups/run" style="margin:0">
       <?= csrf_field() ?>
       <button class="btn btn-primary" data-testid="run-backup-btn">▶ Backup Now</button>
     </form>
@@ -22,7 +22,7 @@ function fmt_bytes2($b) {
 </div>
 
 <div class="grid-2" style="margin-top:14px">
-  <form method="post" action="/servers/<?= (int)$s['id'] ?>/backups/schedule" class="card" data-testid="schedule-form">
+  <form method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/backups/schedule" class="card" data-testid="schedule-form">
     <?= csrf_field() ?>
     <div class="section-title" style="margin-top:0">Schedule</div>
     <label style="display:flex;gap:8px;align-items:center;font-family:var(--font-body);text-transform:none;letter-spacing:0;color:var(--text)">
@@ -72,14 +72,14 @@ function fmt_bytes2($b) {
           <td class="mono muted"><?= h($b['created_at']) ?></td>
           <td style="text-align:right">
             <?php if ($b['status'] === 'completed'): ?>
-              <a href="/servers/<?= (int)$s['id'] ?>/backups/download?backup_id=<?= (int)$b['id'] ?>" class="btn btn-sm">⬇</a>
-              <form method="post" action="/servers/<?= (int)$s['id'] ?>/backups/restore" data-confirm="Overwrite server files with this backup? The server must be stopped." style="display:inline-block;margin:0">
+              <a href="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/backups/download?backup_id=<?= (int)$b['id'] ?>" class="btn btn-sm">⬇</a>
+              <form method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/backups/restore" data-confirm="Overwrite server files with this backup? The server must be stopped." style="display:inline-block;margin:0">
                 <?= csrf_field() ?><input type="hidden" name="backup_id" value="<?= (int)$b['id'] ?>">
                 <input name="confirm_restore" required pattern="RESTORE" placeholder="Type RESTORE" aria-label="Type RESTORE to confirm" style="width:120px">
                 <button class="btn btn-sm btn-primary" data-testid="restore-<?= (int)$b['id'] ?>">↩ Restore</button>
               </form>
             <?php endif; ?>
-            <form method="post" action="/servers/<?= (int)$s['id'] ?>/backups/delete" data-confirm="Delete backup?" style="display:inline-block;margin:0">
+            <form method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$s['id'] ?>/backups/delete" data-confirm="Delete backup?" style="display:inline-block;margin:0">
               <?= csrf_field() ?><input type="hidden" name="backup_id" value="<?= (int)$b['id'] ?>">
               <button class="btn btn-sm btn-danger" data-testid="delete-backup-<?= (int)$b['id'] ?>">✕</button>
             </form>
