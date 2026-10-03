@@ -4,27 +4,30 @@ function is_https_request(): bool {
     if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') {
         return true;
     }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+    $trustedProxy = in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+    if ($trustedProxy && !empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
         return true;
     }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) !== 'off') {
+    if ($trustedProxy && !empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) !== 'off') {
         return true;
     }
     return false;
 }
 
 function is_local_request(): bool {
-    $host = strtolower($_SERVER['HTTP_HOST'] ?? '');
     $remote = $_SERVER['REMOTE_ADDR'] ?? '';
-    return in_array($host, ['localhost', '127.0.0.1', '[::1]'], true)
-        || in_array($remote, ['127.0.0.1', '::1'], true);
+    return in_array($remote, ['127.0.0.1', '::1'], true);
 }
 
 function require_https(): void {
     if (is_https_request() || is_local_request()) {
         return;
     }
-    $host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if (!preg_match('/^(?:[A-Za-z0-9.-]+|\[[A-Fa-f0-9:]+\])(?::[0-9]+)?$/D', $host)) {
+        http_response_code(400);
+        exit('Invalid host');
+    }
     $host = preg_replace('/:\d+$/', '', $host) ?: 'localhost';
     $uri = $_SERVER['REQUEST_URI'] ?? '/';
     header('Location: https://' . $host . $uri, true, 301);
@@ -32,6 +35,8 @@ function require_https(): void {
 }
 
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
     $secure = is_https_request();
     session_set_cookie_params([
         'lifetime' => 60 * 60 * 8,
@@ -75,7 +80,8 @@ function url(string $path = ''): string {
 }
 
 function redirect(string $to): void {
-    if (str_starts_with($to, '/') && !str_starts_with($to, '//')) {
+    if (!str_starts_with($to, '/') || str_starts_with($to, '//') || preg_match('/[\x00-\x20\\\\]/', $to)) $to = '/dashboard';
+    if (str_starts_with($to, '/')) {
         $base = apex_base_path();
         if ($base !== '' && $to !== $base && !str_starts_with($to, $base . '/')) $to = url($to);
     }
@@ -96,7 +102,8 @@ function csrf_field(): string {
 
 function check_csrf(): void {
     $token = $_POST['_csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
-    if (!hash_equals($_SESSION['csrf'] ?? '', $token)) {
+    $expected = $_SESSION['csrf'] ?? '';
+    if (!is_string($expected) || $expected === '' || !is_string($token) || $token === '' || !hash_equals($expected, $token)) {
         http_response_code(419);
         echo json_encode(['error' => 'Invalid CSRF token']);
         exit;
@@ -176,7 +183,7 @@ function user_theme(): array {
     if (!isset($themes[$u['id']])) {
         $themes[$u['id']] = DB::one('SELECT accent, radius, density, mode, font FROM user_themes WHERE user_id=?', [$u['id']]) ?: $defaults;
     }
-    return $themes[$u['id']];
+    return normalize_theme($themes[$u['id']]);
 }
 
 function view(string $name, array $data = []): void {
@@ -203,4 +210,20 @@ function game_meta(string $game): array {
         'rust'              => ['label'=>'Rust',              'icon'=>'⚙',  'color'=>'#EF4444', 'default_port'=>28015],
     ];
     return $m[$game] ?? ['label'=>$game,'icon'=>'▣','color'=>'#00F0FF','default_port'=>25565];
+}
+
+function normalize_theme(array $theme): array {
+    $defaults = ['accent'=>'#00F0FF','radius'=>'12px','density'=>'comfortable','mode'=>'dark','font'=>'Outfit'];
+    $options = [
+        'radius'=>['0px','4px','8px','12px','16px'],
+        'density'=>['compact','comfortable','spacious'],
+        'mode'=>['dark','light'],
+        'font'=>['Outfit','Space Grotesk','Bricolage Grotesque','Plus Jakarta Sans','JetBrains Mono'],
+    ];
+    $result = $defaults;
+    if (is_string($theme['accent'] ?? null) && preg_match('/^#[0-9A-Fa-f]{6}$/D', $theme['accent'])) $result['accent'] = $theme['accent'];
+    foreach ($options as $key=>$allowed) {
+        if (in_array($theme[$key] ?? null, $allowed, true)) $result[$key] = $theme[$key];
+    }
+    return $result;
 }

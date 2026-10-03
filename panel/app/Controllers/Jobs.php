@@ -23,13 +23,15 @@ class Jobs {
         curl_setopt_array($ch, [CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>10]);
         $resp = curl_exec($ch); curl_close($ch);
         $j = json_decode($resp ?: '{}', true) ?: [];
+        $j['ok'] = !empty($j['ok']);
         \flash($j['ok'] ? 'success' : 'error', $j['already_finished'] ?? false ? 'Job already finished.' : ($j['ok'] ? 'Cancel requested — worker will stop between files.' : 'Cancel failed.'));
-        \redirect($_SERVER['HTTP_REFERER'] ?? '/jobs');
+        \redirect('/jobs');
     }
     public function apiShow(int $id) {
         $u = \require_login();
         $j = DB::one('SELECT * FROM jobs WHERE id=?', [$id]);
         if (!$j) \json_response(['ok'=>false,'error'=>'not found'], 404);
+        if ($j['target_kind'] !== 'server' && !in_array($u['role'], ['admin', 'operator'], true)) \json_response(['error'=>'Forbidden'], 403);
         if ($j['target_kind'] === 'server' && !in_array($u['role'], ['admin', 'operator'], true)) {
             \require_server_permission((int)$j['target_id'], 'view_console');
         }

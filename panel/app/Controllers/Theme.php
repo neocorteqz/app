@@ -10,12 +10,8 @@ class Theme {
     public function save() {
         \check_csrf();
         $u = \require_login();
-        $accent = $_POST['accent'] ?? '#00F0FF';
-        $radius = $_POST['radius'] ?? '12px';
-        $density= $_POST['density'] ?? 'comfortable';
-        $mode   = $_POST['mode'] ?? 'dark';
-        $font   = $_POST['font'] ?? 'Outfit';
-        if (!preg_match('/^#[0-9A-Fa-f]{6}$/',$accent)) $accent = '#00F0FF';
+        $theme = \normalize_theme($_POST);
+        ['accent'=>$accent, 'radius'=>$radius, 'density'=>$density, 'mode'=>$mode, 'font'=>$font] = $theme;
         DB::q('INSERT INTO user_themes (user_id, accent, radius, density, mode, font) VALUES (?,?,?,?,?,?) 
                ON DUPLICATE KEY UPDATE accent=VALUES(accent), radius=VALUES(radius), density=VALUES(density), mode=VALUES(mode), font=VALUES(font)',
             [$u['id'], $accent, $radius, $density, $mode, $font]);
@@ -25,6 +21,8 @@ class Theme {
     }
     public function css() {
         header('Content-Type: text/css');
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
         $t = \user_theme();
         $hex = ltrim($t['accent'],'#');
         [$r,$g,$b] = [hexdec(substr($hex,0,2)), hexdec(substr($hex,2,2)), hexdec(substr($hex,4,2))];
