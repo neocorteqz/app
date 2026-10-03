@@ -16,6 +16,8 @@ class Auth {
             \flash('error', 'Invalid credentials.');
             \redirect('/login');
         }
+        session_regenerate_id(true);
+        $_SESSION['csrf'] = bin2hex(random_bytes(24));
         $_SESSION['uid'] = $u['id'];
         \log_activity('login', 'user:'.$u['username']);
         \redirect('/dashboard');
@@ -55,6 +57,8 @@ class Auth {
             \redirect('/register');
         }
         if ($isFirst) {
+            session_regenerate_id(true);
+            $_SESSION['csrf'] = bin2hex(random_bytes(24));
             $_SESSION['uid'] = $id;
             \log_activity('bootstrap-admin', 'user:'.$username);
             \flash('success', 'Welcome — you are now the first admin.');

@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import requests
+from urllib.parse import urlsplit, urljoin, unquote
 
 LogFn = Callable[[str, str], None]
 ProgressFn = Callable[[int, int, str], None]  # done, total, message
@@ -81,17 +82,54 @@ def modrinth_preview(ref: str) -> dict:
     }
 
 
+DOWNLOAD_HOSTS = frozenset({
+    "cdn.modrinth.com", "github.com", "raw.githubusercontent.com",
+    "objects.githubusercontent.com", "release-assets.githubusercontent.com",
+    "media.forgecdn.net", "mediafilez.forgecdn.net", "edge.forgecdn.net",
+})
+
+
+def _safe_work_path(work_dir: Path, name: str) -> Path:
+    root = work_dir.resolve()
+    relative = Path(name)
+    if not name or relative.is_absolute() or ".." in relative.parts or "\\" in name:
+        raise ResolveError("unsafe modpack file path")
+    target = (root / relative).resolve()
+    if target == root or not target.is_relative_to(root):
+        raise ResolveError("modpack file escapes server directory")
+    return target
+
+
+def _validate_download_url(url: str) -> None:
+    try:
+        parsed = urlsplit(url)
+        if (parsed.scheme != "https" or parsed.hostname not in DOWNLOAD_HOSTS
+                or parsed.username is not None or parsed.password is not None
+                or parsed.port not in (None, 443)):
+            raise ResolveError("untrusted modpack download URL")
+    except ValueError as error:
+        raise ResolveError("invalid modpack download URL") from error
+
+
 def _download_stream(url: str, dst: Path, log: LogFn, label: str,
                      headers: dict | None = None, cancel: CancelToken | None = None):
     log(f"[modpack] ⬇ {label}", "info")
-    with requests.get(url, stream=True, timeout=60, headers=headers or {}) as r:
-        r.raise_for_status()
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        with open(dst, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1 << 16):
-                if cancel: cancel.check()
-                if chunk:
-                    f.write(chunk)
+    # Validate every redirect before opening it; a manifest cannot fetch local services.
+    for _ in range(6):
+        _validate_download_url(url)
+        with requests.get(url, stream=True, timeout=60, headers=headers or {}, allow_redirects=False) as r:
+            if r.status_code in (301, 302, 303, 307, 308):
+                url = urljoin(url, r.headers.get("Location", ""))
+                continue
+            r.raise_for_status()
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            with open(dst, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1 << 16):
+                    if cancel: cancel.check()
+                    if chunk:
+                        f.write(chunk)
+            return
+    raise ResolveError("too many modpack download redirects")
 
 
 def _extract_overrides(zf: zipfile.ZipFile, work_dir: Path, override_folder: str, log: LogFn) -> int:
@@ -139,9 +177,9 @@ def install_modrinth(ref: str, work_dir: Path, log: LogFn, progress: ProgressFn 
     primary = next((f for f in v["files"] if f.get("primary")), v["files"][0])
     log(f"[modpack] Found '{project['title']}' {v['version_number']} — {primary['filename']}", "system")
 
-    mods_dir = work_dir / "mods"
+    mods_dir = _safe_work_path(work_dir, "mods")
     mods_dir.mkdir(exist_ok=True)
-    pack_path = work_dir / primary["filename"]
+    pack_path = _safe_work_path(work_dir, primary["filename"])
     if progress: progress(0, 1, f"Downloading pack {primary['filename']}")
     _download_stream(primary["url"], pack_path, log, f"pack {primary['filename']}", cancel=cancel)
 
@@ -158,7 +196,7 @@ def install_modrinth(ref: str, work_dir: Path, log: LogFn, progress: ProgressFn 
             if cancel: cancel.check()
             downloads = f.get("downloads") or []
             path = f["path"]
-            target = work_dir / path
+            target = _safe_work_path(work_dir, path)
             if downloads:
                 try:
                     _download_stream(downloads[0], target, log, f"{i}/{len(files)} {path}", cancel=cancel)
@@ -302,7 +340,7 @@ def install_curseforge(ref: str, work_dir: Path, log: LogFn, api_key: str,
     log(f"[modpack] Found '{preview['title']}' ({preview['latest_file_name']})", "system")
     if progress: progress(0, 1, f"Downloading pack {preview['latest_file_name']}")
     dl_url = _cf_download_url(mod_id, file_id, api_key)
-    pack_path = work_dir / preview["latest_file_name"]
+    pack_path = _safe_work_path(work_dir, preview["latest_file_name"])
     _download_stream(dl_url, pack_path, log, f"pack {preview['latest_file_name']}", cancel=cancel)
 
     with zipfile.ZipFile(pack_path) as zf:
@@ -315,15 +353,15 @@ def install_curseforge(ref: str, work_dir: Path, log: LogFn, api_key: str,
         total = len(mods) + 1
         log(f"[modpack] Manifest: {len(mods)} mods, MC {manifest.get('minecraft',{}).get('version','?')}", "system")
         if progress: progress(0, total, f"{len(mods)} mods to fetch")
-        mods_dir = work_dir / "mods"
+        mods_dir = _safe_work_path(work_dir, "mods")
         mods_dir.mkdir(exist_ok=True)
         for i, m in enumerate(mods, 1):
             if cancel: cancel.check()
             pid, fid = m["projectID"], m["fileID"]
             try:
                 url = _cf_download_url(pid, fid, api_key)
-                fname = url.split("/")[-1] or f"{pid}-{fid}.jar"
-                _download_stream(url, mods_dir / fname, log, f"mod {i}/{len(mods)} {fname}", cancel=cancel)
+                fname = unquote(urlsplit(url).path.rsplit("/", 1)[-1]) or f"{pid}-{fid}.jar"
+                _download_stream(url, _safe_work_path(mods_dir, fname), log, f"mod {i}/{len(mods)} {fname}", cancel=cancel)
             except Cancelled:
                 raise
             except Exception as e:

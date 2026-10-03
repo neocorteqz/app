@@ -143,16 +143,7 @@ class Servers {
     }
     public function apiList() {
         $u = \require_login();
-        // Live drift only for simulated (non-daemon-managed) online servers
         [$where, $args] = \accessible_server_filter($u);
-        $rows = DB::all('SELECT s.* FROM servers s'.$where, $args);
-        foreach ($rows as $r) {
-            if ($r['status'] === 'online') {
-                $cpu = max(2, min(95, (float)$r['cpu_usage'] + rand(-8,8)));
-                $ram = max(64, min((int)$r['ram_mb'], (int)$r['ram_usage_mb'] + rand(-64,64)));
-                DB::q('UPDATE servers SET cpu_usage=?, ram_usage_mb=? WHERE id=?', [$cpu, $ram, $r['id']]);
-            }
-        }
         \json_response(DB::all('SELECT s.id, s.name, s.game, s.status, s.cpu_usage, s.ram_usage_mb, s.ram_mb, s.players_online, s.players_max FROM servers s'.$where, $args));
     }
     public function apiLogs() {
@@ -168,7 +159,7 @@ class Servers {
     }
     public function apiConsoleCmd() {
         $body = json_decode(file_get_contents('php://input'), true) ?: [];
-        if (!hash_equals($_SESSION['csrf'] ?? '', $_SERVER['HTTP_X_CSRF'] ?? '')) \json_response(['error'=>'csrf'],419);
+        \check_csrf();
         $id = (int)($body['id'] ?? 0);
         \require_server_permission($id, 'control_server');
         $cmd = trim($body['cmd'] ?? '');

@@ -138,7 +138,7 @@
     btn.style.cursor = 'pointer';
     btn.style.borderColor = l.accent_color;
     btn.style.color = l.accent_color;
-    btn.innerHTML = `<span style="margin-right:6px">${l.logo_char}</span>${l.name}` + (l.popular ? ' ★' : '');
+    btn.innerHTML = `<span style="margin-right:6px">${escapeHtml(l.logo_char)}</span>${escapeHtml(l.name)}` + (l.popular ? ' ★' : '');
     btn.addEventListener('click', () => {
       loaderInput.value = l.id || '';
       picker.querySelectorAll('button').forEach((b) => b.classList.remove('accent'));
@@ -172,18 +172,18 @@
       const r = await fetch(apexUrl(`/json/modpack/preview?source=${encodeURIComponent(currentSource)}&ref=${encodeURIComponent(ref)}`));
       const j = await r.json();
       if (!j.ok) {
-        preview.innerHTML = `<div class="flash error" data-testid="modpack-error">${j.error || 'Not found'}</div>`;
+        preview.innerHTML = `<div class="flash error" data-testid="modpack-error">${escapeHtml(j.error || 'Not found')}</div>`;
         return;
       }
       const d = j.data;
-      const chipsMc = (d.latest_mc || []).slice(0, 4).map(v => `<span class="chip">${v}</span>`).join(' ');
-      const chipsLoaders = (d.latest_loaders || []).slice(0, 3).map(v => `<span class="chip accent">${v}</span>`).join(' ');
+      const chipsMc = (d.latest_mc || []).slice(0, 4).map(v => `<span class="chip">${escapeHtml(v)}</span>`).join(' ');
+      const chipsLoaders = (d.latest_loaders || []).slice(0, 3).map(v => `<span class="chip accent">${escapeHtml(v)}</span>`).join(' ');
       const authors = d.authors ? d.authors.join(', ') : (d.team || '');
       preview.innerHTML = `
         <div class="card" style="border-color:var(--accent);padding:14px" data-testid="modpack-preview-card">
           <div class="between" style="margin-bottom:6px">
             <h3 style="margin:0">${escapeHtml(d.title)}</h3>
-            <span class="chip accent">${d.source.toUpperCase()}</span>
+            <span class="chip accent">${escapeHtml(d.source.toUpperCase())}</span>
           </div>
           <p class="muted" style="margin:4px 0">${escapeHtml(d.description || '')}</p>
           <div class="mono muted" style="font-size:11px;margin:8px 0">
@@ -196,7 +196,7 @@
           <div class="row">${chipsLoaders}${chipsMc}</div>
         </div>`;
     } catch (e) {
-      preview.innerHTML = `<div class="flash error">${e.message}</div>`;
+      preview.innerHTML = `<div class="flash error">${escapeHtml(e.message)}</div>`;
     }
   }
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

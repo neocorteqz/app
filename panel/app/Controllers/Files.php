@@ -177,7 +177,9 @@ class Files {
         foreach (scandir($dir) as $f) {
             if ($f === '.' || $f === '..') continue;
             $p = "$dir/$f";
-            if (is_dir($p)) $this->rrmdir($p); else @unlink($p);
+            if (is_link($p)) @unlink($p);
+            elseif (is_dir($p)) $this->rrmdir($p);
+            else @unlink($p);
         }
         @rmdir($dir);
     }

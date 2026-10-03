@@ -119,6 +119,8 @@ if (preg_match('#^/servers/(\d+)/access$#', $path, $m) && in_array($method, ['GE
 
 // Daemon API passthrough
 if (($path === '/api/daemon/health' || preg_match('#^/api/daemon/status/(\d+)$#', $path)) && $method === 'GET') {
+    if ($path === '/api/daemon/health') require_role('operator');
+    else require_server_permission((int)basename($path), 'view_server');
     $target = 'http://127.0.0.1:8001' . $path;
     $ch = curl_init($target);
     curl_setopt_array($ch, [
@@ -138,7 +140,13 @@ if (($path === '/api/daemon/health' || preg_match('#^/api/daemon/status/(\d+)$#'
     echo $resp ?: '{"error":"daemon_unreachable"}';
     return true;
 }
-if (preg_match('#^/api/daemon/(start|stop|restart|console)/(\d+)$#', $path, $m) && in_array($method, ['POST','GET'], true)) {
+if (preg_match('#^/api/daemon/(start|stop|restart|console)/(\d+)$#', $path, $m)) {
+    if ($method !== 'POST') {
+        header('Allow: POST');
+        json_response(['error'=>'Method not allowed'], 405);
+    }
+    check_csrf();
+    require_server_permission((int)$m[2], 'control_server');
     $target = 'http://127.0.0.1:8001' . $path;
     $body = null;
     if ($method === 'POST' && $m[1] === 'console') {

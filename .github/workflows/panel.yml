@@ -34,3 +34,7 @@ jobs:
         run: node --check panel/public/assets/app.js
       - name: Exercise browser installation and subdirectory panel
         run: python3 tests/panel/browser_install.py
+      - name: Install downloader test dependency
+        run: python3 -m pip install requests
+      - name: Exercise download sandbox and SSRF protection
+        run: python3 tests/panel/test_download_security.py

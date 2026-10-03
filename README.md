@@ -245,3 +245,9 @@ Repository: [github.com/neocorteqz/app](https://github.com/neocorteqz/app)
 ## PHP application structure and caching
 
 `panel/app/includes.php` is the shared web bootstrap for sessions, common helpers, authentication and controller loading. `panel/app/db.php` owns PDO connections and query helpers. Configuration, signed-in user details and theme data are reused within each request; authorization and live game state are refreshed on new requests. Static assets use browser revalidation, and the PWA cache changes when the CSS/JavaScript changes. Live status and console polling pause in hidden tabs and avoid overlapping requests. File browsing writes the server's work directory only when it changes.
+
+### Security configuration
+
+Keep the daemon on `127.0.0.1:8001`; its API assumes the PHP panel enforces authentication and server permissions. Do not expose it through a public port or a separate reverse proxy. Panel daemon proxy controls require POST, a valid CSRF token and control permission; reads require the corresponding account/server access. Trusted HTTPS forwarding headers are accepted only from a loopback proxy, which must overwrite those headers rather than preserve client-provided values. For a separate proxy host, configure HTTPS at the PHP web server rather than trusting arbitrary client headers.
+
+Modpack downloads are restricted to HTTPS on the explicit download-host allowlist in `panel/daemon/pack_resolver.py`. Redirect destinations are checked too; unknown custom download hosts are rejected. Modpack paths cannot escape the server directory, including through existing symlinks. Restart an already-running daemon after deploying these changes, and confirm its listener remains on loopback.
