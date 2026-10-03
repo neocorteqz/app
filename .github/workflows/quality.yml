@@ -1,0 +1,35 @@
+name: Repository quality
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  standards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: phpcs
+          coverage: none
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ruff==0.16.10
+      - run: phpcs
+      - run: ruff check . && ruff format --check .
+      - run: git ls-files '*.sh' | xargs shellcheck --severity=warning
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile --non-interactive
+        working-directory: frontend
+      - run: yarn build
+        working-directory: frontend

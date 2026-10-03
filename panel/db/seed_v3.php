@@ -1,4 +1,5 @@
 <?php
+
 require_once __DIR__ . '/../app/db.php';
 
 $loaders = [
@@ -35,10 +36,10 @@ $existing = (int)DB::one('SELECT COUNT(*) c FROM mod_loaders')['c'];
 if ($existing === 0) {
     foreach ($loaders as $l) {
         DB::insert('mod_loaders', [
-            'game'=>$l[0],'slug'=>$l[1],'name'=>$l[2],'category'=>$l[3],
-            'tagline'=>$l[4],'description'=>$l[5],'install_cmd'=>$l[6],
-            'logo_char'=>$l[7],'accent_color'=>$l[8],
-            'requires_pack_id'=>$l[9],'popular'=>$l[10],
+            'game' => $l[0],'slug' => $l[1],'name' => $l[2],'category' => $l[3],
+            'tagline' => $l[4],'description' => $l[5],'install_cmd' => $l[6],
+            'logo_char' => $l[7],'accent_color' => $l[8],
+            'requires_pack_id' => $l[9],'popular' => $l[10],
         ]);
     }
     echo "Seeded " . count($loaders) . " mod loaders.\n";

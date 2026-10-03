@@ -10,6 +10,7 @@ Endpoints (all via /api prefix - matches K8s ingress; but also exposed locally):
   GET  /daemon/status/{id}
   POST /daemon/console/{id}  {"cmd": "..."}
 """
+
 import asyncio
 import json
 import os
@@ -17,20 +18,16 @@ import shlex
 import signal
 import subprocess
 import sys
-import time
 from pathlib import Path
-from typing import Dict, Optional
 
+import pack_resolver
 import pymysql
+import runtime as loader_runtime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-import pack_resolver
-import runtime as loader_runtime
-
-
 # ---- job cancellation registry ----
-_cancel_tokens: Dict[int, pack_resolver.CancelToken] = {}
+_cancel_tokens: dict[int, pack_resolver.CancelToken] = {}
 
 
 def _job_exec(sql: str, args: tuple = (), *, lastrowid: bool = False):
@@ -75,6 +72,8 @@ def job_fail(job_id: int, error: str):
         (error[:4000], job_id),
     )
 
+
+DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 DB_HOST = os.environ.get("DB_HOST", "127.0.0.1")
 DB_USER = os.environ.get("DB_USER", "apexnode")
 DB_PASS = os.environ.get("DB_PASS", "apex_local_dev")
@@ -88,14 +87,20 @@ STATE_ROOT.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="ApexNode Daemon", docs_url=None, redoc_url=None)
 
 # In-memory process registry
-processes: Dict[int, subprocess.Popen] = {}
-stdin_streams: Dict[int, any] = {}
+processes: dict[int, subprocess.Popen] = {}
+stdin_streams: dict[int, any] = {}
 
 
 def db():
-    return pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASS,
-                           database=DB_NAME, cursorclass=pymysql.cursors.DictCursor,
-                           autocommit=True)
+    return pymysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME,
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
 
 
 def log_line(server_id: int, line: str, level: str = "info"):
@@ -103,8 +108,10 @@ def log_line(server_id: int, line: str, level: str = "info"):
         conn = db()
         try:
             with conn.cursor() as c:
-                c.execute("INSERT INTO server_logs (server_id, line, level) VALUES (%s, %s, %s)",
-                          (server_id, line[:2000], level))
+                c.execute(
+                    "INSERT INTO server_logs (server_id, line, level) VALUES (%s, %s, %s)",
+                    (server_id, line[:2000], level),
+                )
         finally:
             conn.close()
     except Exception as e:
@@ -173,9 +180,9 @@ def set_status(sid: int, status: str, **fields):
 
 MODPACK_SOURCES = {
     "curseforge": "curseforge",
-    "modrinth":   "modrinth",
-    "ftb":        "curseforge",   # FTB is delivered as a CurseForge pack
-    "workshop":   None,           # CS2 workshop — handled elsewhere
+    "modrinth": "modrinth",
+    "ftb": "curseforge",  # FTB is delivered as a CurseForge pack
+    "workshop": None,  # CS2 workshop — handled elsewhere
 }
 
 
@@ -201,9 +208,13 @@ def install_modpack_if_needed(server) -> None:
     wd.mkdir(parents=True, exist_ok=True)
     cf_key = get_setting("curseforge_api_key")
     try:
-        pack_resolver.install(source, ref, wd, lambda l, lv: log_line(sid, l, lv), cf_api_key=cf_key)
+        pack_resolver.install(
+            source, ref, wd, lambda line, lv: log_line(sid, line, lv), cf_api_key=cf_key
+        )
         _job_exec("UPDATE servers SET modpack_status='installed' WHERE id=%s", (sid,))
-        set_status(sid, prior_status if prior_status not in ("installing", "starting") else "offline")
+        set_status(
+            sid, prior_status if prior_status not in ("installing", "starting") else "offline"
+        )
         log_line(sid, "[modpack] ✓ Ready to boot", "system")
     except Exception as e:
         _job_exec("UPDATE servers SET modpack_status='failed' WHERE id=%s", (sid,))
@@ -213,7 +224,10 @@ def install_modpack_if_needed(server) -> None:
 
 
 def ensure_workdir(server) -> Path:
-    wd = STATE_ROOT / "servers" / str(server["id"])
+    managed_root = (STATE_ROOT / "servers").resolve()
+    wd = (managed_root / str(server["id"])).resolve()
+    if wd == managed_root or not wd.is_relative_to(managed_root):
+        raise ValueError("server directory is outside the managed root")
     wd.mkdir(parents=True, exist_ok=True)
     egg = get_egg(server.get("egg_id"))
     # Seed default files from egg if empty
@@ -228,11 +242,19 @@ def ensure_workdir(server) -> Path:
         if not default_files:
             default_files = {
                 "server.properties": f"# {server['name']}\nserver-port={server['port']}\nmax-players={server['players_max']}\nmotd=Powered by ApexNode\n",
-                "README.md": f"# {server['name']}\n\nProvisioned by ApexNode. Edit files in this folder, then Restart the server.\n"
+                "README.md": f"# {server['name']}\n\nProvisioned by ApexNode. Edit files in this folder, then Restart the server.\n",
             }
         for fname, content in default_files.items():
-            (wd / fname).parent.mkdir(parents=True, exist_ok=True)
-            (wd / fname).write_text(content)
+            target = pack_resolver._safe_work_path(wd, fname)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            rendered = str(content)
+            for key, value in {
+                "port": server["port"],
+                "players": server["players_max"],
+                "name": server["name"],
+            }.items():
+                rendered = rendered.replace("{" + key + "}", str(value))
+            target.write_text(rendered, encoding="utf-8")
     # Persist work_dir
     _job_exec("UPDATE servers SET work_dir=%s WHERE id=%s", (str(wd), server["id"]))
     return wd
@@ -252,14 +274,14 @@ async def stream_output(sid: int, stream, level: str = "info"):
         if text:
             log_line(sid, text, level)
     # process ended
-    log_line(sid, f"[daemon] stream closed", "system")
+    log_line(sid, "[daemon] stream closed", "system")
 
 
 def build_start_cmd(server, egg) -> str:
     """Delegate to runtime.py which knows how to spin up Paper/Purpur/Fabric etc.
     For non-Java games or unknown combos, runtime.py returns the fake_game.py fallback."""
     loader = get_loader(server.get("loader_id"))
-    return loader_runtime.resolve(server, loader, lambda l, lv: log_line(server["id"], l, lv))
+    return loader_runtime.resolve(server, loader, lambda line, lv: log_line(server["id"], line, lv))
 
 
 class ConsoleIn(BaseModel):
@@ -284,7 +306,7 @@ async def start(sid: int):
     s = get_server(sid)
     egg = get_egg(s.get("egg_id"))
     try:
-        cmd = build_start_cmd(s, egg)
+        cmd = await asyncio.to_thread(build_start_cmd, s, egg)
     except Exception as e:
         set_status(sid, "crashed")
         log_line(sid, f"[runtime] loader bootstrap failed: {e}", "error")
@@ -299,7 +321,7 @@ async def start(sid: int):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            preexec_fn=os.setsid,
+            start_new_session=True,
         )
     except Exception as e:
         log_line(sid, f"[daemon] failed to spawn: {e}", "error")
@@ -323,7 +345,10 @@ async def start(sid: int):
     asyncio.create_task(watchdog())
     # Small grace to transition from starting → online
     await asyncio.sleep(0.6)
-    set_status(sid, "online", cpu_usage=15.0, ram_usage_mb=int(s["ram_mb"] * 0.4))
+    if proc.poll() is not None:
+        set_status(sid, "crashed", cpu_usage=0, ram_usage_mb=0, players_online=0)
+        raise HTTPException(500, "server process exited during startup; inspect server logs")
+    set_status(sid, "online", cpu_usage=0, ram_usage_mb=0)
     return {"status": "started", "pid": proc.pid}
 
 
@@ -374,7 +399,7 @@ async def console(sid: int, payload: ConsoleIn):
     stream = stdin_streams.get(sid)
     if not stream:
         log_line(sid, f"> {payload.cmd}", "system")
-        log_line(sid, "[daemon] server not running — command queued", "warn")
+        log_line(sid, "[daemon] server not running — command not delivered", "warn")
         return {"ok": False, "reason": "not_running"}
     try:
         stream.write((payload.cmd + "\n").encode())
@@ -387,7 +412,10 @@ async def console(sid: int, payload: ConsoleIn):
 
 @app.get("/api/daemon/health")
 async def health():
-    return {"status": "ok", "running_servers": len([p for p in processes.values() if p.poll() is None])}
+    return {
+        "status": "ok",
+        "running_servers": len([p for p in processes.values() if p.poll() is None]),
+    }
 
 
 @app.get("/api/daemon/modpack/preview")
@@ -446,7 +474,12 @@ async def modpack_install_async(sid: int):
     finally:
         conn.close()
     if existing:
-        return {"ok": True, "already_running": True, "job_id": existing["id"], "status": existing["status"]}
+        return {
+            "ok": True,
+            "already_running": True,
+            "job_id": existing["id"],
+            "status": existing["status"],
+        }
 
     job_id = create_job("modpack_install", "server", sid, f"Install '{s['modpack_ref']}'")
     asyncio.create_task(_run_modpack_job(job_id, sid))
@@ -465,7 +498,10 @@ async def cancel_job(job_id: int):
                 raise HTTPException(404, "job not found")
             if row["status"] in ("completed", "failed", "cancelled"):
                 return {"ok": True, "already_finished": True, "status": row["status"]}
-            c.execute("UPDATE jobs SET cancel_requested=1, message=CONCAT('cancel-requested · ', COALESCE(message,'')) WHERE id=%s", (job_id,))
+            c.execute(
+                "UPDATE jobs SET cancel_requested=1, message=CONCAT('cancel-requested · ', COALESCE(message,'')) WHERE id=%s",
+                (job_id,),
+            )
     finally:
         conn.close()
     token = _cancel_tokens.get(job_id)
@@ -498,8 +534,10 @@ async def _run_modpack_job(job_id: int, sid: int) -> None:
         wd.mkdir(parents=True, exist_ok=True)
         cf_key = get_setting("curseforge_api_key")
         pack_resolver.install(
-            source, server["modpack_ref"], wd,
-            log=lambda l, lv: log_line(sid, l, lv),
+            source,
+            server["modpack_ref"],
+            wd,
+            log=lambda line, lv: log_line(sid, line, lv),
             cf_api_key=cf_key,
             progress=lambda done, total, msg: job_progress(job_id, done, total, msg),
             cancel=token,
@@ -516,8 +554,10 @@ async def _run_modpack_job(job_id: int, sid: int) -> None:
         _job_exec("UPDATE servers SET modpack_status='none' WHERE id=%s", (sid,))
         set_status(sid, "offline")
         log_line(sid, "[modpack] ✗ cancelled by operator", "warn")
-        _job_exec("UPDATE jobs SET status='cancelled', completed_at=NOW(), message=%s WHERE id=%s",
-                  (f"cancelled: {e}", job_id))
+        _job_exec(
+            "UPDATE jobs SET status='cancelled', completed_at=NOW(), message=%s WHERE id=%s",
+            (f"cancelled: {e}", job_id),
+        )
     except Exception as e:
         _job_exec("UPDATE servers SET modpack_status='failed' WHERE id=%s", (sid,))
         set_status(sid, "crashed")
@@ -543,4 +583,5 @@ async def get_job(job_id: int):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "8001")))

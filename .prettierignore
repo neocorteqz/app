@@ -1,0 +1,5 @@
+node_modules/
+frontend/build/
+*.lock
+test_reports/
+.emergent/

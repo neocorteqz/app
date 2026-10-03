@@ -1,8 +1,11 @@
 <?php
+
 namespace App\Controllers;
 
-class Pwa {
-    public function manifest() {
+class Pwa
+{
+    public function manifest()
+    {
         header('Content-Type: application/manifest+json');
         echo json_encode([
             'name' => 'ApexNode Panel',
@@ -18,7 +21,8 @@ class Pwa {
             ],
         ], JSON_UNESCAPED_SLASHES);
     }
-    public function serviceWorker() {
+    public function serviceWorker()
+    {
         header('Content-Type: application/javascript');
         $assets = json_encode(array_map('url', ['/assets/app.css', '/assets/app.js', '/manifest.webmanifest']));
         $version = substr(hash('sha256', \apex_base_path() . hash_file('sha256', __DIR__ . '/../../public/assets/app.css') . hash_file('sha256', __DIR__ . '/../../public/assets/app.js')), 0, 16);

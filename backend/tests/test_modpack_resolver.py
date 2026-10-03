@@ -7,6 +7,7 @@ Real network — allow long timeouts. Only 1 real Modrinth install is exercised
 end-to-end (adrenaserver, small optimization pack). CurseForge downloads are
 skipped (packs are huge); only preview is tested end-to-end.
 """
+
 import os
 import re
 import time
@@ -14,6 +15,12 @@ import time
 import pymysql
 import pytest
 import requests
+
+# These historical suites require a disposable, configured game host.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("APEX_RUN_LIVE_TESTS") != "1",
+    reason="Set APEX_RUN_LIVE_TESTS=1 only for an explicitly provisioned disposable host",
+)
 
 BASE = os.environ.get("REACT_APP_BACKEND_URL", "http://127.0.0.1:3001").rstrip("/")
 DAEMON = "http://127.0.0.1:8001"
@@ -33,17 +40,26 @@ def admin_session():
     s = requests.Session()
     r = s.get(f"{BASE}/login", verify=False)
     csrf = _get_csrf(r.text)
-    r = s.post(f"{BASE}/login",
-               data={"_csrf": csrf, "email": "admin", "password": "admin123"},
-               allow_redirects=False, verify=False)
+    r = s.post(
+        f"{BASE}/login",
+        data={"_csrf": csrf, "email": "admin", "password": "admin123"},
+        allow_redirects=False,
+        verify=False,
+    )
     assert r.status_code in (302, 303), f"login failed: {r.status_code}"
     return s
 
 
 @pytest.fixture(scope="module")
 def db():
-    conn = pymysql.connect(host="127.0.0.1", user="apexnode", password="apex_local_dev",
-                          database="apexnode", cursorclass=pymysql.cursors.DictCursor, autocommit=True)
+    conn = pymysql.connect(
+        host="127.0.0.1",
+        user="apexnode",
+        password="apex_local_dev",
+        database="apexnode",
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
     yield conn
     conn.close()
 
@@ -53,14 +69,20 @@ def db():
 # ---------------------------------------------------------------------
 class TestPreview:
     def test_preview_requires_auth(self):
-        r = requests.get(f"{BASE}/json/modpack/preview?source=modrinth&ref=fabulously-optimized",
-                         allow_redirects=False, verify=False)
+        r = requests.get(
+            f"{BASE}/json/modpack/preview?source=modrinth&ref=fabulously-optimized",
+            allow_redirects=False,
+            verify=False,
+        )
         assert r.status_code in (301, 302, 303)
         assert "/login" in r.headers.get("Location", "")
 
     def test_modrinth_success(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview?source=modrinth&ref=fabulously-optimized",
-                              verify=False, timeout=30)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview?source=modrinth&ref=fabulously-optimized",
+            verify=False,
+            timeout=30,
+        )
         assert r.status_code == 200
         j = r.json()
         assert j.get("ok") is True, j
@@ -75,16 +97,22 @@ class TestPreview:
         assert d["latest_version"]
 
     def test_modrinth_not_found(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview?source=modrinth&ref=this-does-not-exist-xyz",
-                              verify=False, timeout=30)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview?source=modrinth&ref=this-does-not-exist-xyz",
+            verify=False,
+            timeout=30,
+        )
         assert r.status_code == 200
         j = r.json()
         assert j.get("ok") is False
         assert "not found" in j.get("error", "").lower()
 
     def test_curseforge_by_slug(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview?source=curseforge&ref=all-the-mods-9",
-                              verify=False, timeout=45)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview?source=curseforge&ref=all-the-mods-9",
+            verify=False,
+            timeout=45,
+        )
         assert r.status_code == 200
         j = r.json()
         assert j.get("ok") is True, j
@@ -97,8 +125,9 @@ class TestPreview:
         assert d["latest_file_name"].endswith(".zip")
 
     def test_curseforge_by_id_atm8(self, admin_session):
-        r = admin_session.get(f"{BASE}/json/modpack/preview?source=curseforge&ref=520914",
-                              verify=False, timeout=45)
+        r = admin_session.get(
+            f"{BASE}/json/modpack/preview?source=curseforge&ref=520914", verify=False, timeout=45
+        )
         assert r.status_code == 200
         j = r.json()
         assert j.get("ok") is True, j
@@ -112,11 +141,23 @@ class TestDeployModpackServer:
     def test_store_sets_pending(self, admin_session, db):
         r = admin_session.get(f"{BASE}/servers/new", verify=False)
         csrf = _get_csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers", data={
-            "_csrf": csrf, "name": "FabOptTest", "game": "minecraft-java",
-            "loader_id": 9, "modpack_ref": "fabulously-optimized",
-            "node_id": 1, "port": 25595, "cpu_limit": 2, "ram_mb": 4096, "disk_gb": 10,
-        }, allow_redirects=False, verify=False)
+        r = admin_session.post(
+            f"{BASE}/servers",
+            data={
+                "_csrf": csrf,
+                "name": "FabOptTest",
+                "game": "minecraft-java",
+                "loader_id": 9,
+                "modpack_ref": "fabulously-optimized",
+                "node_id": 1,
+                "port": 25595,
+                "cpu_limit": 2,
+                "ram_mb": 4096,
+                "disk_gb": 10,
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert r.status_code in (302, 303), r.text[:400]
         loc = r.headers.get("Location", "")
         assert re.search(r"/servers/(\d+)", loc), loc
@@ -143,13 +184,20 @@ class TestPathSafety:
             if not row:
                 pytest.skip("prior test didn't create a modpack server")
             sid = row["id"]
-            c.execute("UPDATE servers SET modpack_ref=%s, modpack_status='pending' WHERE id=%s",
-                     ("../etc/passwd", sid))
+            c.execute(
+                "UPDATE servers SET modpack_ref=%s, modpack_status='pending' WHERE id=%s",
+                ("../etc/passwd", sid),
+            )
         # Trigger install via panel
         r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
         csrf = _get_csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers/{sid}/modpack/install",
-                               data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=60)
+        r = admin_session.post(
+            f"{BASE}/servers/{sid}/modpack/install",
+            data={"_csrf": csrf},
+            allow_redirects=False,
+            verify=False,
+            timeout=60,
+        )
         # panel returns 302 back with flash error
         assert r.status_code in (200, 302, 303)
         # ensure no writes outside sandbox
@@ -161,7 +209,10 @@ class TestPathSafety:
         assert status in ("failed", "pending"), status
         # restore correct ref for future tests
         with db.cursor() as c:
-            c.execute("UPDATE servers SET modpack_ref='fabulously-optimized', modpack_status='pending' WHERE id=%s", (sid,))
+            c.execute(
+                "UPDATE servers SET modpack_ref='fabulously-optimized', modpack_status='pending' WHERE id=%s",
+                (sid,),
+            )
 
 
 # ---------------------------------------------------------------------
@@ -174,19 +225,36 @@ class TestModrinthInstallE2E:
         # Create a fresh server pointing at adrenaserver
         r = admin_session.get(f"{BASE}/servers/new", verify=False)
         csrf = _get_csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers", data={
-            "_csrf": csrf, "name": "AdrenaTest", "game": "minecraft-java",
-            "loader_id": 9, "modpack_ref": "adrenaserver",
-            "node_id": 1, "port": 25596, "cpu_limit": 2, "ram_mb": 2048, "disk_gb": 5,
-        }, allow_redirects=False, verify=False)
+        r = admin_session.post(
+            f"{BASE}/servers",
+            data={
+                "_csrf": csrf,
+                "name": "AdrenaTest",
+                "game": "minecraft-java",
+                "loader_id": 9,
+                "modpack_ref": "adrenaserver",
+                "node_id": 1,
+                "port": 25596,
+                "cpu_limit": 2,
+                "ram_mb": 2048,
+                "disk_gb": 5,
+            },
+            allow_redirects=False,
+            verify=False,
+        )
         assert r.status_code in (302, 303)
         sid = int(re.search(r"/servers/(\d+)", r.headers["Location"]).group(1))
 
         # Trigger manual install via panel; the daemon processes it asynchronously.
         r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
         csrf = _get_csrf(r.text)
-        r = admin_session.post(f"{BASE}/servers/{sid}/modpack/install",
-                              data={"_csrf": csrf}, allow_redirects=False, verify=False, timeout=180)
+        r = admin_session.post(
+            f"{BASE}/servers/{sid}/modpack/install",
+            data={"_csrf": csrf},
+            allow_redirects=False,
+            verify=False,
+            timeout=180,
+        )
         assert r.status_code in (200, 302, 303), r.text[:400]
 
         deadline = time.time() + 180
@@ -213,8 +281,10 @@ class TestModrinthInstallE2E:
         assert len(jars) >= 5, f"only {len(jars)} jars — expected 5+"
 
         # verify log entries
-        assert any(l.startswith("[modpack] ⬇") for l in log_lines), "no download log line"
-        assert any("[modpack] ✓ Modrinth pack installed" in l for l in log_lines), "no success line"
+        assert any(line.startswith("[modpack] ⬇") for line in log_lines), "no download log line"
+        assert any("[modpack] ✓ Modrinth pack installed" in line for line in log_lines), (
+            "no success line"
+        )
 
         # verify UI shows INSTALLED status pill
         r = admin_session.get(f"{BASE}/servers/{sid}", verify=False)
@@ -222,7 +292,9 @@ class TestModrinthInstallE2E:
         assert "INSTALLED" in r.text
         # Install-pack-now button should be gone
         # (btn-install-pack still may appear if template renders it; check it is not present when installed)
-        assert 'data-testid="btn-install-pack"' not in r.text, "install button should be hidden after install"
+        assert 'data-testid="btn-install-pack"' not in r.text, (
+            "install button should be hidden after install"
+        )
 
         pytest.adrena_sid = sid
 
@@ -232,10 +304,12 @@ class TestModrinthInstallE2E:
 # ---------------------------------------------------------------------
 class TestRegression:
     def test_dashboard(self, admin_session):
-        r = admin_session.get(f"{BASE}/dashboard", verify=False); assert r.status_code == 200
+        r = admin_session.get(f"{BASE}/dashboard", verify=False)
+        assert r.status_code == 200
 
     def test_servers_list(self, admin_session):
-        r = admin_session.get(f"{BASE}/servers", verify=False); assert r.status_code == 200
+        r = admin_session.get(f"{BASE}/servers", verify=False)
+        assert r.status_code == 200
 
     def test_server_1_detail(self, admin_session):
         r = admin_session.get(f"{BASE}/servers/1", verify=False)

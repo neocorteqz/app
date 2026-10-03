@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<ruleset name="ApexNode">
+    <description>PSR-12 for PHP application code; view templates are syntax checked.</description>
+    <file>panel/app</file>
+    <file>panel/config</file>
+    <file>panel/scripts</file>
+    <file>panel/db/seed.php</file>
+    <file>panel/db/seed_v2.php</file>
+    <file>panel/db/seed_v3.php</file>
+    <file>panel/public/router.php</file>
+    <rule ref="PSR12">
+        <exclude name="Generic.Files.LineLength" />
+        <exclude name="PSR1.Files.SideEffects" />
+    </rule>
+</ruleset>

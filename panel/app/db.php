@@ -1,12 +1,22 @@
 <?php
+
 // Database bootstrap using PDO
-class DB {
+namespace App;
+
+use PDO;
+use PDOStatement;
+use RuntimeException;
+
+class DB
+{
     private static ?PDO $pdo = null;
     private static ?PDO $provisioner = null;
-    public static function setConnection(PDO $pdo): void {
+    public static function setConnection(PDO $pdo): void
+    {
         self::$pdo = $pdo;
     }
-    public static function conn(): PDO {
+    public static function conn(): PDO
+    {
         if (self::$pdo === null) {
             $c = require __DIR__ . '/../config/config.php';
             $dsn = "mysql:host={$c['db']['host']};port={$c['db']['port']};dbname={$c['db']['name']};charset=utf8mb4";
@@ -18,7 +28,8 @@ class DB {
         }
         return self::$pdo;
     }
-    public static function provisioner(): PDO {
+    public static function provisioner(): PDO
+    {
         if (self::$provisioner === null) {
             $c = require __DIR__ . '/../config/config.php';
             if (empty($c['db_provisioner']['user']) || empty($c['db_provisioner']['pass'])) {
@@ -32,22 +43,29 @@ class DB {
         }
         return self::$provisioner;
     }
-    public static function q(string $sql, array $args = []): PDOStatement {
+    public static function q(string $sql, array $args = []): PDOStatement
+    {
         $s = self::conn()->prepare($sql);
         $s->execute($args);
         return $s;
     }
-    public static function one(string $sql, array $args = []): ?array {
+    public static function one(string $sql, array $args = []): ?array
+    {
         $r = self::q($sql, $args)->fetch();
         return $r ?: null;
     }
-    public static function all(string $sql, array $args = []): array {
+    public static function all(string $sql, array $args = []): array
+    {
         return self::q($sql, $args)->fetchAll();
     }
-    public static function insert(string $table, array $data): int {
+    public static function insert(string $table, array $data): int
+    {
         $cols = implode(',', array_keys($data));
         $ph = implode(',', array_fill(0, count($data), '?'));
         self::q("INSERT INTO {$table} ({$cols}) VALUES ({$ph})", array_values($data));
         return (int)self::conn()->lastInsertId();
     }
 }
+
+// Preserve the shared DB facade used by panel helpers and standalone seed scripts.
+class_alias(DB::class, 'DB');
