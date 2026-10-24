@@ -20,6 +20,7 @@
     <button class="btn btn-primary" style="width:100%" data-testid="login-submit">Enter Command Tower →</button>
   </form>
   <p style="text-align:center;margin-top:20px" class="muted">
-    First install? <a href="<?= h(apex_base_path()) ?>/register" data-testid="link-register">Create the first admin →</a>
+    First install? <a href="<?= h(apex_base_path()) ?>/register" data-testid="link-register">Create the first admin →</a><br>
+    Forgot your password? <a href="<?= h(apex_base_path()) ?>/forgot" data-testid="link-forgot">Reset it →</a>
   </p>
 </div>

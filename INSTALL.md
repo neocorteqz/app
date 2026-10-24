@@ -1,6 +1,6 @@
-# Browser installation
+# ApexNode Browser Installation (Version 1.0)
 
-Before upload, prepare PHP 8.0+ with PDO MySQL, cURL, sessions and JSON; MySQL 8.0+ or MariaDB 10.5+; HTTPS; and Apache rewrite support with `.htaccess` enabled, or equivalent Nginx/Caddy routing and private-file protection. No Composer, Node.js, npm or command-line access is required for the web panel.
+Before upload, prepare PHP 8.1+ with PDO MySQL, cURL, sessions and JSON; MySQL 8.0+ or MariaDB 10.5+; HTTPS; and Apache rewrite support with `.htaccess` enabled, or equivalent Nginx/Caddy routing and private-file protection. No Composer, Node.js, npm or command-line access is required for the web panel.
 
 1. Create an empty database and a dedicated user in your hosting dashboard. Grant database-level SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX and REFERENCES.
 2. Upload the contents of `panel/`, including `.htaccess`, to the chosen directory with FTP or your file manager. A directory named `games` works at `https://example.com/games/`. If supported, use `panel/public/` as the document root.

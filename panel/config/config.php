@@ -1,47 +1,70 @@
 <?php
 
+declare(strict_types=1);
+
+/**
+ * ApexNode Configuration
+ *
+ * Reads configuration once per request (PDO and shared helpers reuse this array).
+ * Precedence: environment variables > panel/config/installed.php > panel/config/.env > defaults.
+ *
+ * @return array<string,mixed> The resolved configuration array.
+ */
 if (!function_exists('apex_load_config')) {
     function apex_load_config(): array
     {
-        // Read configuration once per request (PDO and shared helpers reuse this array).
         static $cachedConfig = null;
         if ($cachedConfig !== null) {
             return $cachedConfig;
         }
-        // ApexNode Configuration
+
         $dotenv = is_file(__DIR__ . '/.env') ? (parse_ini_file(__DIR__ . '/.env', false, INI_SCANNER_RAW) ?: []) : [];
-        $local = is_file(__DIR__ . '/installed.php') ? require __DIR__ . '/installed.php' : [];
+        $local  = is_file(__DIR__ . '/installed.php') ? (array) require __DIR__ . '/installed.php' : [];
         $dotenv = array_merge($dotenv, $local);
-        $setting = static fn(string $key, string $default = ''): string => (string)(getenv($key) ?: ($dotenv[$key] ?? $default));
+
+        $setting = static function (string $key, string $default = ''): string {
+            return (string) (getenv($key) ?: ($dotenv[$key] ?? $default));
+        };
+
         $cachedConfig = [
-            'base_path' => $setting('APEX_BASE_PATH'),
-            'app_name' => 'ApexNode',
-            'app_tagline' => 'Tactical Game Server Control Tower',
-            'db' => [
-                'host' => $setting('DB_HOST', '127.0.0.1'),
-                'port' => (int)$setting('DB_PORT', '3306'),
-                'name' => $setting('DB_NAME', 'apexnode'),
-                'user' => $setting('DB_USER', 'apexnode'),
-                'pass' => $setting('DB_PASS', 'apex_local_dev'),
+            'base_path'     => $setting('APEX_BASE_PATH'),
+            'app_name'      => 'ApexNode',
+            'app_tagline'   => 'Tactical Game Server Control Tower',
+            'db'            => [
+                'host'     => $setting('DB_HOST', '127.0.0.1'),
+                'port'     => (int) $setting('DB_PORT', '3306'),
+                'name'     => $setting('DB_NAME', 'apexnode'),
+                'user'     => $setting('DB_USER', 'apexnode'),
+                'pass'     => $setting('DB_PASS', 'apex_local_dev'),
             ],
-            'db_provisioner' => [
+            'db_provisioner'=> [
                 'user' => $setting('DB_PROVISIONER_USER'),
                 'pass' => $setting('DB_PROVISIONER_PASS'),
             ],
-            'state_root' => rtrim($setting('APEX_STATE', '/var/lib/apexnode'), '/'),
-            'redis' => [
+            'state_root'    => rtrim($setting('APEX_STATE', '/var/lib/apexnode'), '/'),
+            'redis'         => [
                 'host' => $setting('REDIS_HOST', '127.0.0.1'),
-                'port' => (int)$setting('REDIS_PORT', '6379'),
+                'port' => (int) $setting('REDIS_PORT', '6379'),
             ],
-            'discord' => [
-                'token' => $setting('DISCORD_BOT_TOKEN'),
-                'guild' => $setting('DISCORD_GUILD_ID'),
-                'channel' => $setting('DISCORD_CHANNEL_ID'),
+            'discord'       => [
+                'token'  => $setting('DISCORD_BOT_TOKEN'),
+                'guild'  => $setting('DISCORD_GUILD_ID'),
+                'channel'=> $setting('DISCORD_CHANNEL_ID'),
             ],
             'session_lifetime' => 60 * 60 * 8,
+            'mail'             => [
+                'from'     => $setting('MAIL_FROM', 'apexnode@localhost'),
+                'from_name'=> $setting('MAIL_FROM_NAME', 'ApexNode'),
+                'host'     => $setting('MAIL_HOST', ''),
+                'port'     => (int)$setting('MAIL_PORT', '25'),
+                'user'     => $setting('MAIL_USER', ''),
+                'pass'     => $setting('MAIL_PASS', ''),
+                'encrypt'  => $setting('MAIL_ENCRYPT', ''),
+            ],
         ];
 
         return $cachedConfig;
     }
 }
+
 return apex_load_config();

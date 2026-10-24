@@ -1,10 +1,8 @@
 # ApexNode Game Server Panel
 
-**Beta version 0.0.1**
+**Version 1.0**
 
 ApexNode is a self-hosted Linux control panel for deploying and operating game servers. It includes Minecraft Java runtime support and experimental Bedrock, Counter-Strike 2, and Rust workflows. The panel combines a PHP web application, a Python daemon, MariaDB, Redis, and systemd services.
-
-> **Beta disclaimer:** ApexNode is beta software. Features, database schemas, and installer behavior can change between releases. Do not use it as the sole control plane for valuable or production game data. Keep independent backups, test restores, restrict administrative access, and report problems before relying on the panel.
 
 ## Feature Set
 
@@ -20,7 +18,7 @@ ApexNode is a self-hosted Linux control panel for deploying and operating game s
 - Install behind Apache, Nginx, Caddy, cPanel, DirectAdmin, or Plesk, or use standalone Nginx on a bare server.
 - Install the panel as a PWA and optionally configure the Discord integration.
 
-Some game runtimes and integrations are still limited or experimental. Review the beta disclaimer and test the exact workflow you plan to use.
+Some game runtimes and integrations are still limited or experimental. Review the runtime table below and test the exact workflow you plan to use.
 
 ## Requirements
 
@@ -30,12 +28,12 @@ The upload installer assumes these dependencies are already installed. It checks
 
 | Dependency | Required setup |
 | --- | --- |
-| PHP | PHP 8.0 or newer with PDO, `pdo_mysql`, cURL, sessions, JSON and password hashing. PHP must be able to write the panel's `config/` directory and create `storage/`. |
+| PHP | PHP 8.1 or newer with PDO, `pdo_mysql`, cURL, sessions, JSON and password hashing. PHP must be able to write the panel's `config/` directory and create `storage/`. |
 | Database | MySQL 8.0+ or MariaDB 10.5+, an empty database, and a database user with SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX and REFERENCES privileges on that database. |
 | Web server | Apache 2.4 with `mod_rewrite`, directory overrides enabled for `.htaccess`, and PHP configured; or an existing Nginx/Caddy configuration with front-controller routing and private-file protection. |
 | HTTPS | A working SSL certificate for the panel URL before entering credentials. |
 | Browser | A current browser with JavaScript enabled. |
-| Optional acceleration | PHP OPcache, enabled by your hosting provider. The panel also reuses configuration/user/theme reads per request, reuses PDO connections, and caches static interface assets in the browser. |
+| Optional acceleration | PHP OPcache, enabled by your hosting provider. The panel reuses configuration/user/theme reads per request, reuses PDO connections, and caches static interface assets in the browser. |
 
 For **game-server operations**, also have Python 3.10 or newer with the packages in `panel/daemon/requirements.txt`, the ApexNode daemon running on the same machine, compatible game runtimes (Java for Minecraft Java, etc.), writable shared server storage, and the backup runner for scheduled backups. Backup creation/restore also needs `tar`/gzip and PHP `exec` enabled; S3 backups additionally need the AWS CLI. Database-user provisioning is optional and needs separately configured `DB_PROVISIONER_USER` / `DB_PROVISIONER_PASS` credentials with database/user creation privileges. Redis and systemd are used by the legacy full-host installer but are not prerequisites for the PHP panel's upload wizard. Node.js/npm and Composer are not required to install the PHP panel.
 
@@ -62,11 +60,9 @@ Prefer a recent high-clock CPU for Minecraft, SSD/NVMe storage, and enough memor
 
 ## Installation
 
-For an existing host with the dependencies above, use the browser upload method first. The later SSH instructions are an optional full-host provisioning alternative.
+### Option 1 — Upload and install through your browser (recommended, no SSH)
 
-### Upload and install through your browser (no SSH)
-
-For the **web panel**, use existing PHP hosting with PHP 8.0+, PDO MySQL, cURL, HTTPS, and MySQL 8.0+ or MariaDB 10.5+. Apache must allow `.htaccess` with rewrite support.
+For the **web panel**, use existing PHP hosting with PHP 8.1+, PDO MySQL, cURL, HTTPS, and MySQL 8.0+ or MariaDB 10.5+. Apache must allow `.htaccess` with rewrite support.
 
 1. Download the repository ZIP and upload **the contents of `panel/`**, including `.htaccess`, into your chosen web directory using your hosting file manager or FTP. For example, `public_html/games/` serves the panel at `https://example.com/games/`.
 2. In your hosting dashboard, create an **empty database** and a database user with privileges on that database. No database-root account is needed.
@@ -80,7 +76,9 @@ The wizard creates only your chosen administrator and bundled templates/loaders.
 
 **Game hosting is separate:** PHP file uploads cannot install system packages, Python services, Java, or game processes. The current daemon uses a local loopback connection, so full game operations require a daemon on the same machine and access from PHP to its server files. Ordinary shared hosting can host the panel UI, but will usually need provider assistance or a VPS for the daemon. Scheduled backups also require the existing backup runner. The root installer below remains available for full host provisioning.
 
-### Before you start (full host installation)
+### Option 2 — Full host installation (SSH, root)
+
+#### Before you start
 
 1. Choose a clean Linux server or confirm which web server/control panel already owns ports 80 and 443.
 2. Point the domain's DNS `A`/`AAAA` record at the server if you plan to use a domain.
@@ -88,7 +86,7 @@ The wizard creates only your chosen administrator and bundled templates/loaders.
 4. Log in over SSH as a sudo-capable administrator. The installer needs root access; do not run a script you do not trust.
 5. Back up existing web-server configuration before integrating with a hosted server.
 
-### Interactive install
+#### Interactive install
 
 On a fresh bare server, download or clone the repository and run the installer as root:
 
@@ -100,7 +98,7 @@ sudo bash install/install.sh
 
 The wizard detects cPanel, DirectAdmin, Plesk, or active Apache/Nginx/Caddy services when possible. Review the detected choice carefully, then select the web server/integration, panel port, application directory, data directory, integration-script directory, and optional domain/account name.
 
-### One-line install
+#### One-line install
 
 You can run the installer directly from GitHub. This downloads and executes code as root, so inspect the script first if you need to audit it.
 
@@ -109,8 +107,8 @@ Standalone Nginx on port 8080 with custom locations:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/neocorteqz/app/main/panel/install/install.sh \
 	| sudo bash -s -- --web-server standalone --port 8080 \
-			--install-dir /opt/apexnode --data-dir /srv/apexnode-data \
-			--plugin-dir /opt/apexnode-integrations
+		--install-dir /opt/apexnode --data-dir /srv/apexnode-data \
+		--plugin-dir /opt/apexnode-integrations
 ```
 
 Existing Apache with a domain:
@@ -118,8 +116,8 @@ Existing Apache with a domain:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/neocorteqz/app/main/panel/install/install.sh \
 	| sudo bash -s -- --web-server apache --port 8443 \
-			--domain panel.example.com --install-dir /opt/apexnode \
-			--data-dir /srv/apexnode-data
+		--domain panel.example.com --install-dir /opt/apexnode \
+		--data-dir /srv/apexnode-data
 ```
 
 Caddy with automatic HTTPS:
@@ -127,14 +125,14 @@ Caddy with automatic HTTPS:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/neocorteqz/app/main/panel/install/install.sh \
 	| sudo bash -s -- --web-server caddy --port 8443 \
-			--domain panel.example.com --data-dir /srv/apexnode-data
+		--domain panel.example.com --data-dir /srv/apexnode-data
 ```
 
 The installer accepts `--web-server auto|standalone|apache|nginx|caddy|cpanel|directadmin|plesk|other`. `auto` detects the host; when detection is ambiguous, choose explicitly. The legacy `--coexist` option remains available. Use `--help` to see all options. Supplying options makes the installer non-interactive by default; add `--interactive` to be prompted too, or `--non-interactive` to suppress prompts.
 
 For cPanel and DirectAdmin, supply `--panel-user ACCOUNT` when configuring a domain. Plesk, Nginx, Apache, and Caddy helpers preserve the existing server configuration where possible and manage ApexNode-specific snippets. Without a domain, the installer installs the private loopback listener and copies the helper; run that helper later with the domain and port.
 
-### What the installer configures
+#### What the installer configures
 
 - Application files at the selected install directory.
 - Server files, backups, and PHP sessions under the selected data directory.
@@ -146,7 +144,7 @@ For cPanel and DirectAdmin, supply `--panel-user ACCOUNT` when configuring a dom
 
 Review installer output and keep generated database credentials private. For the legacy full-host installer, the initial panel login is `admin` / `admin123`; sign in immediately and change the password before exposing the panel to other users.
 
-### Web server integrations
+#### Web server integrations
 
 | Choice | Behavior |
 | --- | --- |
@@ -226,7 +224,7 @@ df -h
 free -h
 ```
 
-## Security and Beta Notes
+## Security Notes
 
 - Change the default administrator password immediately.
 - Keep the panel behind HTTPS when accessible outside a trusted network.
@@ -234,7 +232,9 @@ free -h
 - Limit public panel and game ports with a firewall. Hosted integration listeners should remain on loopback.
 - Treat public join links as shareable access to server name, status, player count, and connect address. Until a UI rotation action is available, revoke a link by changing its `share_token` in the database.
 - Back up the database and server data independently before upgrades/restores.
-- This is **Beta 0.0.1**. APIs, installer integrations, and game workflows may change. Use at your own risk and keep recoverable backups.
+- Uploaded server files are scanned for executable/script extensions (`.php`, `.py`, `.sh`, etc.) and refused to prevent remote code execution.
+- Failed logins are throttled per session to slow brute-force attempts.
+- A forgot-password flow issues a single-use, time-limited reset token emailed to the account owner. Signed-in users can change their password (after verifying the current one) and change their email via a confirmation token sent to the new address.
 
 ## Bugs, Suggestions, and Contributions
 
@@ -251,7 +251,6 @@ Repository: [github.com/neocorteqz/app](https://github.com/neocorteqz/app)
 Keep the daemon on `127.0.0.1:8001`; its API assumes the PHP panel enforces authentication and server permissions. Do not expose it through a public port or a separate reverse proxy. Panel daemon proxy controls require POST, a valid CSRF token and control permission; reads require the corresponding account/server access. Trusted HTTPS forwarding headers are accepted only from a loopback proxy, which must overwrite those headers rather than preserve client-provided values. For a separate proxy host, configure HTTPS at the PHP web server rather than trusting arbitrary client headers.
 
 Modpack downloads are restricted to HTTPS on the explicit download-host allowlist in `panel/daemon/pack_resolver.py`. Redirect destinations are checked too; unknown custom download hosts are rejected. Modpack paths cannot escape the server directory, including through existing symlinks. Restart an already-running daemon after deploying these changes, and confirm its listener remains on loopback.
-
 
 ## Runtime capabilities and installation checks
 

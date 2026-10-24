@@ -58,6 +58,9 @@ $routes = [
     'POST /register'               => ['App\\Controllers\\Auth', 'register'],
     'POST /logout'                 => ['App\\Controllers\\Auth', 'logout'],
 
+    'GET /forgot'                  => ['App\\Controllers\\PasswordReset', 'forgot'],
+    'POST /forgot'                 => ['App\\Controllers\\PasswordReset', 'request'],
+
     'GET /dashboard'               => ['App\\Controllers\\Dashboard', 'index'],
     'GET /servers'                 => ['App\\Controllers\\Servers', 'index'],
     'GET /servers/new'             => ['App\\Controllers\\Servers', 'create'],
@@ -87,6 +90,10 @@ $routes = [
     'GET /discord'                 => ['App\\Controllers\\Discord', 'index'],
     'POST /discord'                => ['App\\Controllers\\Discord', 'save'],
     'POST /discord/test'           => ['App\\Controllers\\Discord', 'test'],
+
+    'GET /profile'                 => ['App\\Controllers\\Profile', 'index'],
+    'POST /profile/password'       => ['App\\Controllers\\Profile', 'changePassword'],
+    'POST /profile/email'          => ['App\\Controllers\\Profile', 'changeEmailRequest'],
 
     'GET /activity'                => ['App\\Controllers\\Activity', 'index'],
     'GET /install'                 => ['App\\Controllers\\Install', 'index'],
@@ -268,6 +275,22 @@ if (preg_match('#^/servers/(\d+)/backups/download$#', $path, $m) && $method === 
 // Server detail routes (dynamic ID)
 if (preg_match('#^/servers/(\d+)$#', $path, $m) && $method === 'GET') {
     (new App\Controllers\Servers())->show((int)$m[1]);
+    return true;
+}
+
+// Password reset (token in URL)
+if (preg_match('#^/reset/([a-f0-9]{64})$#', $path, $m)) {
+    if ($method === 'GET') {
+        (new App\Controllers\PasswordReset())->reset($m[1]);
+    } elseif ($method === 'POST') {
+        (new App\Controllers\PasswordReset())->submit($m[1]);
+    }
+    return true;
+}
+
+// Email change confirmation
+if (preg_match('#^/profile/email/confirm/([a-f0-9]{64})$#', $path, $m) && $method === 'GET') {
+    (new App\Controllers\Profile())->confirmEmailChange($m[1]);
     return true;
 }
 
