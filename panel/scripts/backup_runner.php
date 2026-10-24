@@ -1,7 +1,4 @@
 <?php
-
-declare(strict_types=1);
-
 /**
  * ApexNode Backup Runner
  *
@@ -10,6 +7,8 @@ declare(strict_types=1);
  * the aws CLI, and applies retention. Runs continuously with a 30s sleep; managed
  * by systemd (apex-backup.service).
  */
+
+declare(strict_types=1);
 
 require_once __DIR__ . '/../app/db.php';
 $config = require __DIR__ . '/../config/config.php';

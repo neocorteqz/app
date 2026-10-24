@@ -136,7 +136,7 @@ class Servers
             'loader_id'       => $loader ? $loader['id'] : null,
             'modpack_ref'     => $modpackRef ?: null,
             'modpack_status'  => $modpackStatus,
-            'minecraft_version'=> $minecraftVer,
+            'minecraft_version' => $minecraftVer,
             'node_id'         => $nodeId,
             'owner_id'        => (int) $u['id'],
             'port'            => $port,

@@ -12,7 +12,7 @@
     <tbody>
     <?php foreach ($jobs as $j):
       $pct = $j['total'] > 0 ? min(100, (int)round(100 * $j['progress'] / $j['total'])) : 0;
-      $cls = match($j['status']) { 'completed'=>'online','failed'=>'offline','running'=>'starting','cancelled'=>'offline', default=>'installing' };
+      $cls = match($j['status']) { 'completed' => 'online', 'failed' => 'offline', 'running' => 'starting', 'cancelled' => 'offline', default => 'installing' };
     ?>
       <tr data-testid="job-row-<?= (int)$j['id'] ?>">
         <td class="mono">#<?= (int)$j['id'] ?></td>
