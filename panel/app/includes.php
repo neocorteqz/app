@@ -453,6 +453,7 @@ function send_mail(string $to, string $subject, string $body, array $headers = [
     }
     return (bool) $result;
 }
+function view(string $name, array $data = []): void
 {
     extract($data);
     $user   = auth_user();
