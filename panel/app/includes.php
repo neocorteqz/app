@@ -409,16 +409,50 @@ function user_theme(?array $user = null): array
 }
 
 /**
- * Render a view wrapped in the shared layout.
+ * Send an email using PHP's mail() function with optional SMTP-like config.
  *
- * Extracts the view data into local variables, loads layout_top.php, the view
- * template, then layout_bottom.php.
+ * Falls back gracefully when mail is unavailable (writes to the error log).
+ * Recipient and subject are sanitised to prevent header injection.
  *
- * @param string $name  The view template path relative to views/.
- * @param array  $data  Variables exposed to the template.
- * @return void
+ * @param string $to      Recipient address.
+ * @param string $subject Email subject.
+ * @param string $body    Email body.
+ * @param array  $headers Additional headers (optional).
+ * @return bool True when mail was accepted for delivery, false otherwise.
  */
-function view(string $name, array $data = []): void
+function send_mail(string $to, string $subject, string $body, array $headers = []): bool
+{
+    $config = require __DIR__ . '/../config/config.php';
+    $mail   = $config['mail'] ?? [];
+
+    $to = filter_var($to, FILTER_VALIDATE_EMAIL) ?: '';
+    if ($to === '') {
+        error_log('[send_mail] invalid recipient');
+        return false;
+    }
+    $subject = preg_replace('/[\r\n]+/', '', $subject);
+
+    $allHeaders = [];
+    if (!empty($mail['from'])) {
+        $fromName = !empty($mail['from_name']) ? $mail['from_name'] : 'ApexNode';
+        $fromName = preg_replace('/[\r\n]+/', '', $fromName);
+        $allHeaders[] = 'From: "' . $fromName . '" <' . $mail['from'] . '>';
+    }
+    $allHeaders[] = 'MIME-Version: 1.0';
+    $allHeaders[] = 'Content-Type: text/plain; charset=UTF-8';
+    $allHeaders[] = 'X-Mailer: ApexNode/1.0';
+    foreach ($headers as $key => $value) {
+        $key   = preg_replace('/[\r\n]+/', '', $key);
+        $value = preg_replace('/[\r\n]+/', '', $value);
+        $allHeaders[] = $key . ': ' . $value;
+    }
+
+    $result = @mail($to, $subject, $body, implode("\r\n", $allHeaders));
+    if (!$result) {
+        error_log('[send_mail] mail() rejected recipient: ' . $to);
+    }
+    return (bool) $result;
+}
 {
     extract($data);
     $user   = auth_user();

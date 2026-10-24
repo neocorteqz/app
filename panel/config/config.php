@@ -52,6 +52,15 @@ if (!function_exists('apex_load_config')) {
                 'channel'=> $setting('DISCORD_CHANNEL_ID'),
             ],
             'session_lifetime' => 60 * 60 * 8,
+            'mail'             => [
+                'from'     => $setting('MAIL_FROM', 'apexnode@localhost'),
+                'from_name'=> $setting('MAIL_FROM_NAME', 'ApexNode'),
+                'host'     => $setting('MAIL_HOST', ''),
+                'port'     => (int)$setting('MAIL_PORT', '25'),
+                'user'     => $setting('MAIL_USER', ''),
+                'pass'     => $setting('MAIL_PASS', ''),
+                'encrypt'  => $setting('MAIL_ENCRYPT', ''),
+            ],
         ];
 
         return $cachedConfig;

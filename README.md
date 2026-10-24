@@ -234,6 +234,7 @@ free -h
 - Back up the database and server data independently before upgrades/restores.
 - Uploaded server files are scanned for executable/script extensions (`.php`, `.py`, `.sh`, etc.) and refused to prevent remote code execution.
 - Failed logins are throttled per session to slow brute-force attempts.
+- A forgot-password flow issues a single-use, time-limited reset token emailed to the account owner. Signed-in users can change their password (after verifying the current one) and change their email via a confirmation token sent to the new address.
 
 ## Bugs, Suggestions, and Contributions
 

@@ -232,7 +232,7 @@ SQL
 banner "Deploying ApexNode files to ${APEX_DIR}"
 mkdir -p "${APEX_DIR}" "${STATE_DIR}/servers" "${STATE_DIR}/backups" "${PLUGIN_DIR}"
 cp -a "${SOURCE_DIR}/." "${APEX_DIR}/"
-for sql in schema.sql schema_v2.sql schema_v3.sql schema_v4.sql schema_v5.sql schema_v6.sql schema_v7.sql; do
+for sql in schema.sql schema_v2.sql schema_v3.sql schema_v4.sql schema_v5.sql schema_v6.sql schema_v7.sql schema_v8.sql; do
   [[ -f "${APEX_DIR}/db/$sql" ]] && mysql -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "${APEX_DIR}/db/$sql"
 done
 

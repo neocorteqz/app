@@ -112,7 +112,7 @@ function apex_web_installer(): void
                 }
             }
             // Files are bundled; no downloads, shell commands or database-root privileges.
-            foreach (['schema.sql', 'schema_v2.sql', 'schema_v3.sql', 'schema_v4.sql', 'schema_v5.sql', 'schema_v6.sql', 'schema_v7.sql'] as $file) {
+            foreach (['schema.sql', 'schema_v2.sql', 'schema_v3.sql', 'schema_v4.sql', 'schema_v5.sql', 'schema_v6.sql', 'schema_v7.sql', 'schema_v8.sql'] as $file) {
                 $sql = preg_replace('/^--.*$/m', '', file_get_contents($root . '/db/' . $file));
                 foreach (explode(';', $sql) as $statement) {
                     $statement = trim($statement);

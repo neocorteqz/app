@@ -29,6 +29,7 @@
     <nav class="nav" data-testid="sidebar-nav">
       <div class="section">Operations</div>
       <a href="<?= h(apex_base_path()) ?>/dashboard" class="<?= str_starts_with($current, '/dashboard') ? 'active':'' ?>" data-testid="nav-dashboard">◱ Dashboard</a>
+      <a href="<?= h(apex_base_path()) ?>/profile" class="<?= str_starts_with($current, '/profile') ? 'active':'' ?>" data-testid="nav-profile">👤 Profile</a>
       <a href="<?= h(apex_base_path()) ?>/servers" class="<?= str_starts_with($current, '/servers') ? 'active':'' ?>" data-testid="nav-servers">▶ Servers</a>
       <a href="<?= h(apex_base_path()) ?>/eggs" class="<?= str_starts_with($current, '/eggs') ? 'active':'' ?>" data-testid="nav-eggs">◈ Egg Marketplace</a>
       <a href="<?= h(apex_base_path()) ?>/mods" class="<?= str_starts_with($current, '/mods') ? 'active':'' ?>" data-testid="nav-mods">⚙ Installations</a>
