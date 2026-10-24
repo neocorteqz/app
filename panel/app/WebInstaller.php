@@ -47,7 +47,7 @@ function apex_web_installer(): void
         'PHP 8.0 or newer'        => PHP_VERSION_ID >= 80000,
         'PDO MySQL extension'     => extension_loaded('pdo_mysql'),
         'cURL extension'          => extension_loaded('curl'),
-        'Writable config directory'=> is_writable($root . '/config'),
+        'Writable config directory' => is_writable($root . '/config'),
         'Writable panel directory (local storage)' => is_writable($root),
     ];
     $error   = '';
@@ -204,7 +204,7 @@ li{margin:8px 0}
 <body>
 <main>
 <h1>Install ApexNode</h1>
-<?php if ($success) : ?>
+    <?php if ($success) : ?>
     <section>
         <h2>Your panel is ready</h2>
         <p>Your administrator account has been created and installation is locked.</p>
@@ -217,13 +217,13 @@ li{margin:8px 0}
         ?><li><?= $ok ? '✓' : '✗' ?> <?= $escape($label) ?></li><?php
         endforeach; ?>
     </ul>
-    <?php if ($error) :
-        ?><p class="error" role="alert"><?= $escape($error) ?></p><?php
-    endif; ?>
+        <?php if ($error) :
+            ?><p class="error" role="alert"><?= $escape($error) ?></p><?php
+        endif; ?>
     <form method="post"><input type="hidden" name="_csrf" value="<?= $escape($_SESSION['setup_csrf']) ?>">
     <h2>Database</h2>
-    <?php foreach (['db_host' => ['Host', 'localhost'], 'db_port' => ['Port', '3306'], 'db_name' => ['Database name', ''], 'db_user' => ['Database user', '']] as $key => $field) :
-        ?><label for="<?= $key ?>"><?= $field[0] ?></label><input id="<?= $key ?>" name="<?= $key ?>" required value="<?= $escape($_POST[$key] ?? $field[1]) ?>"><?php
+        <?php foreach (['db_host' => ['Host', 'localhost'], 'db_port' => ['Port', '3306'], 'db_name' => ['Database name', ''], 'db_user' => ['Database user', '']] as $key => $field) :
+            ?><label for="<?= $key ?>"><?= $field[0] ?></label><input id="<?= $key ?>" name="<?= $key ?>" required value="<?= $escape($_POST[$key] ?? $field[1]) ?>"><?php
     endforeach; ?>
     <label for="db_pass">Database password</label><input id="db_pass" name="db_pass" type="password" autocomplete="new-password">
     <h2>Administrator</h2>

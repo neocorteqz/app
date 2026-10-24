@@ -11,7 +11,7 @@
       <tr data-testid="access-user-<?= (int)$access['id'] ?>">
         <td><?= h($access['username']) ?><div class="muted"><?= h($access['email']) ?></div></td>
         <?php $formId = 'server-access-user-' . (int)$access['id']; ?>
-        <?php foreach (['view_server'=>'View server', 'view_console'=>'View console', 'control_server'=>'Control', 'view_files'=>'View files', 'manage_files'=>'Manage files', 'view_backups'=>'View backups', 'manage_backups'=>'Manage backups'] as $key=>$label): ?>
+        <?php foreach (['view_server' => 'View server', 'view_console' => 'View console', 'control_server' => 'Control', 'view_files' => 'View files', 'manage_files' => 'Manage files', 'view_backups' => 'View backups', 'manage_backups' => 'Manage backups'] as $key => $label): ?>
           <td><label title="<?= h($label) ?>"><input form="<?= h($formId) ?>" type="checkbox" name="<?= h($key) ?>" value="1" <?= !empty($access[$key])?'checked':'' ?> aria-label="<?= h($label) ?>"></label></td>
         <?php endforeach; ?>
         <td><form id="<?= h($formId) ?>" method="post" action="<?= h(apex_base_path()) ?>/servers/<?= (int)$server['id'] ?>/access" style="margin:0">

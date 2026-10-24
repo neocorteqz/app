@@ -1,7 +1,4 @@
 <?php
-
-declare(strict_types=1);
-
 /**
  * ApexNode Configuration
  *
@@ -10,6 +7,9 @@ declare(strict_types=1);
  *
  * @return array<string,mixed> The resolved configuration array.
  */
+
+declare(strict_types=1);
+
 if (!function_exists('apex_load_config')) {
     function apex_load_config(): array
     {
@@ -37,7 +37,7 @@ if (!function_exists('apex_load_config')) {
                 'user'     => $setting('DB_USER', 'apexnode'),
                 'pass'     => $setting('DB_PASS', 'apex_local_dev'),
             ],
-            'db_provisioner'=> [
+            'db_provisioner' => [
                 'user' => $setting('DB_PROVISIONER_USER'),
                 'pass' => $setting('DB_PROVISIONER_PASS'),
             ],
@@ -49,12 +49,12 @@ if (!function_exists('apex_load_config')) {
             'discord'       => [
                 'token'  => $setting('DISCORD_BOT_TOKEN'),
                 'guild'  => $setting('DISCORD_GUILD_ID'),
-                'channel'=> $setting('DISCORD_CHANNEL_ID'),
+                'channel' => $setting('DISCORD_CHANNEL_ID'),
             ],
             'session_lifetime' => 60 * 60 * 8,
             'mail'             => [
                 'from'     => $setting('MAIL_FROM', 'apexnode@localhost'),
-                'from_name'=> $setting('MAIL_FROM_NAME', 'ApexNode'),
+                'from_name' => $setting('MAIL_FROM_NAME', 'ApexNode'),
                 'host'     => $setting('MAIL_HOST', ''),
                 'port'     => (int)$setting('MAIL_PORT', '25'),
                 'user'     => $setting('MAIL_USER', ''),

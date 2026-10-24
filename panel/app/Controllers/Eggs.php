@@ -107,7 +107,7 @@ class Eggs
             'egg_game'    => $game,
             'egg_start'   => trim((string) ($data['startup'] ?? $data['start_command'] ?? '')),
             'egg_images'  => $images,
-            'egg_variables'=> $variables,
+            'egg_variables' => $variables,
             'existing_egg' => $existing,
         ]);
     }
@@ -186,9 +186,9 @@ class Eggs
             'name'         => $name,
             'tagline'      => $tagline !== '' ? $tagline : 'Imported Pterodactyl egg',
             'description'  => $description,
-            'start_command'=> $start,
+            'start_command' => $start,
             'docker_image' => $dockerImage,
-            'default_files'=> $defaultFiles ? json_encode($defaultFiles) : null,
+            'default_files' => $defaultFiles ? json_encode($defaultFiles) : null,
             'default_env'  => $defaultEnv ? json_encode($defaultEnv) : null,
             'author'       => 'Pterodactyl Import',
             'downloads'    => 0,
