@@ -1,27 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
+/**
+ * PWA controller: manifest and service worker for installable panel.
+ */
 class Pwa
 {
-    public function manifest()
+    /**
+     * Serve the web app manifest.
+     *
+     * @return void
+     */
+    public function manifest(): void
     {
         header('Content-Type: application/manifest+json');
         echo json_encode([
-            'name' => 'ApexNode Panel',
-            'short_name' => 'ApexNode',
-            'start_url' => \url('/dashboard'),
-            'display' => 'standalone',
+            'name'        => 'ApexNode Panel',
+            'short_name'  => 'ApexNode',
+            'start_url'   => \url('/dashboard'),
+            'display'     => 'standalone',
             'background_color' => '#090A0F',
             'theme_color' => '#00F0FF',
             'description' => 'Tactical game server control tower.',
-            'icons' => [
+            'icons'       => [
                 ['src' => \url('/assets/icon-192.svg'), 'sizes' => '192x192', 'type' => 'image/svg+xml'],
                 ['src' => \url('/assets/icon-512.svg'), 'sizes' => '512x512', 'type' => 'image/svg+xml'],
             ],
         ], JSON_UNESCAPED_SLASHES);
     }
-    public function serviceWorker()
+
+    /**
+     * Serve the service worker that caches static assets.
+     *
+     * @return void
+     */
+    public function serviceWorker(): void
     {
         header('Content-Type: application/javascript');
         $assets = json_encode(array_map('url', ['/assets/app.css', '/assets/app.js', '/manifest.webmanifest']));

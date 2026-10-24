@@ -1,17 +1,33 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use DB;
 
+/**
+ * Theme controller: per-user UI customisation and dynamic CSS.
+ */
 class Theme
 {
-    public function index()
+    /**
+     * Render the theme customizer form.
+     *
+     * @return void
+     */
+    public function index(): void
     {
         \require_login();
         \view('theme/index', ['title' => 'Theme Customizer']);
     }
-    public function save()
+
+    /**
+     * Save the signed-in user's theme preferences.
+     *
+     * @return void
+     */
+    public function save(): void
     {
         \check_csrf();
         $u = \require_login();
@@ -26,15 +42,21 @@ class Theme
         \flash('success', 'Theme saved.');
         \redirect('/theme');
     }
-    public function css()
+
+    /**
+     * Emit dynamic CSS variables derived from the user's theme.
+     *
+     * @return void
+     */
+    public function css(): void
     {
         header('Content-Type: text/css');
         header('Cache-Control: private, no-store');
         header('X-Content-Type-Options: nosniff');
         $t = \user_theme();
         $hex = ltrim($t['accent'], '#');
-        [$r,$g,$b] = [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
-        $pad = ['compact' => '10px','comfortable' => '16px','spacious' => '22px'][$t['density']] ?? '16px';
+        [$r, $g, $b] = [hexdec(substr($hex, 0, 2)), hexdec(substr($hex, 2, 2)), hexdec(substr($hex, 4, 2))];
+        $pad = ['compact' => '10px', 'comfortable' => '16px', 'spacious' => '22px'][$t['density']] ?? '16px';
         echo ":root {\n";
         echo "  --accent: {$t['accent']};\n";
         echo "  --accent-glow: rgba($r,$g,$b,0.4);\n";

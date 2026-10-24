@@ -1,11 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use DB;
 
+/**
+ * Backup controller: snapshots, schedules, restore, download, and retention.
+ *
+ * Archives are validated before extraction (no absolute paths, no ".."
+ * segments, no symlinks). Restores only replace directories beneath the managed
+ * server root. S3 credentials never leak into error output.
+ */
 class Backups
 {
+    private const MAX_LIST_ENTRIES = 1000;
+
+    /**
+     * Fetch a server row or emit 404 and stop.
+     *
+     * @param int $id Server id.
+     * @return array The server row.
+     */
     private function server(int $id): array
     {
         $s = DB::one('SELECT * FROM servers WHERE id=?', [$id]);
@@ -16,10 +33,21 @@ class Backups
         }
         return $s;
     }
+
+    /**
+     * Delete backups beyond the retention count for a server.
+     *
+     * @param int $serverId Server id.
+     * @param int $keep     Number of recent backups to retain.
+     * @return void
+     */
     private function applyRetention(int $serverId, int $keep): void
     {
         $keep = max(1, $keep);
-        $olds = DB::all('SELECT id, path FROM backups WHERE server_id=? AND status IN ("completed","restored") ORDER BY id DESC LIMIT 1000 OFFSET ?', [$serverId, $keep]);
+        $olds = DB::all(
+            'SELECT id, path FROM backups WHERE server_id=? AND status IN ("completed","restored") ORDER BY id DESC LIMIT 1000 OFFSET ?',
+            [$serverId, $keep]
+        );
         foreach ($olds as $old) {
             if ($old['path'] && is_file($old['path'])) {
                 @unlink($old['path']);
@@ -27,6 +55,13 @@ class Backups
             DB::q('DELETE FROM backups WHERE id=?', [$old['id']]);
         }
     }
+
+    /**
+     * Recursively remove a directory tree (symlinks are unlinked, not followed).
+     *
+     * @param string $path Directory to remove.
+     * @return void
+     */
     private function removeTree(string $path): void
     {
         if (!is_dir($path) || is_link($path)) {
@@ -46,6 +81,15 @@ class Backups
         }
         @rmdir($path);
     }
+
+    /**
+     * Validate a tar.gz archive before it is restored.
+     *
+     * Rejects absolute paths, ".." path segments, and symlinks/hardlinks.
+     *
+     * @param string $archive Path to the archive.
+     * @return string|null A human-readable problem message, or null when safe.
+     */
     private function validateArchive(string $archive): ?string
     {
         exec('tar -tzf ' . escapeshellarg($archive) . ' 2>&1', $members, $listCode);
@@ -54,6 +98,9 @@ class Backups
         }
         foreach ($members as $member) {
             $member = trim($member);
+            if ($member === '') {
+                continue;
+            }
             if (str_starts_with($member, '/') || in_array('..', explode('/', $member), true)) {
                 return 'Backup contains an unsafe path and cannot be restored.';
             }
@@ -69,36 +116,57 @@ class Backups
         }
         return null;
     }
-    public function index(int $id)
+
+    /**
+     * List backups and the schedule for a server.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function index(int $id): void
     {
         \require_server_permission($id, 'view_backups');
         $s = $this->server($id);
         $sched = DB::one('SELECT id, server_id, interval_minutes, retention, storage, s3_bucket, s3_endpoint, s3_access_key, enabled, last_run FROM backup_schedules WHERE server_id=?', [$id]) ?: [
-            'interval_minutes' => 1440,'retention' => 7,'storage' => 'local','enabled' => 0,
-            's3_bucket' => '','s3_endpoint' => '','s3_access_key' => '','s3_secret_key' => '',
-            'last_run' => null,
+            'interval_minutes' => 1440,
+            'retention'        => 7,
+            'storage'          => 'local',
+            'enabled'          => 0,
+            's3_bucket'        => '',
+            's3_endpoint'      => '',
+            's3_access_key'    => '',
+            's3_secret_key'    => '',
+            'last_run'         => null,
         ];
         $backups = DB::all('SELECT * FROM backups WHERE server_id=? ORDER BY id DESC LIMIT 30', [$id]);
-        \view('backups/index', ['title' => 'Backups — ' . $s['name'],'s' => $s,'sched' => $sched,'backups' => $backups]);
+        \view('backups/index', ['title' => 'Backups — ' . $s['name'], 's' => $s, 'sched' => $sched, 'backups' => $backups]);
     }
 
-    public function saveSchedule(int $id)
+    /**
+     * Save or update a backup schedule for a server.
+     *
+     * The S3 secret is only replaced when a non-empty value is posted.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function saveSchedule(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_backups');
         $s = $this->server($id);
         $existing = DB::one('SELECT s3_secret_key FROM backup_schedules WHERE server_id=?', [$id]);
-        $postedSecret = (string)($_POST['s3_secret_key'] ?? '');
+        $postedSecret = (string) ($_POST['s3_secret_key'] ?? '');
         $data = [
-            'server_id' => $id,
-            'interval_minutes' => max(5, (int)($_POST['interval_minutes'] ?? 1440)),
-            'retention' => max(1, (int)($_POST['retention'] ?? 7)),
-            'storage' => ($_POST['storage'] ?? 'local') === 's3' ? 's3' : 'local',
-            's3_bucket' => trim($_POST['s3_bucket'] ?? ''),
-            's3_endpoint' => trim($_POST['s3_endpoint'] ?? ''),
-            's3_access_key' => trim($_POST['s3_access_key'] ?? ''),
-            's3_secret_key' => $postedSecret !== '' ? $postedSecret : ($existing['s3_secret_key'] ?? ''),
-            'enabled' => isset($_POST['enabled']) ? 1 : 0,
+            'server_id'        => $id,
+            'interval_minutes' => max(5, (int) ($_POST['interval_minutes'] ?? 1440)),
+            'retention'        => max(1, (int) ($_POST['retention'] ?? 7)),
+            'storage'          => ((string) ($_POST['storage'] ?? 'local') === 's3') ? 's3' : 'local',
+            's3_bucket'        => trim((string) ($_POST['s3_bucket'] ?? '')),
+            's3_endpoint'      => trim((string) ($_POST['s3_endpoint'] ?? '')),
+            's3_access_key'    => trim((string) ($_POST['s3_access_key'] ?? '')),
+            's3_secret_key'    => $postedSecret !== '' ? $postedSecret : ($existing['s3_secret_key'] ?? ''),
+            'enabled'          => isset($_POST['enabled']) ? 1 : 0,
         ];
         DB::q(
             'INSERT INTO backup_schedules (server_id, interval_minutes, retention, storage, s3_bucket, s3_endpoint, s3_access_key, s3_secret_key, enabled)
@@ -106,19 +174,30 @@ class Backups
                ON DUPLICATE KEY UPDATE interval_minutes=VALUES(interval_minutes), retention=VALUES(retention),
                storage=VALUES(storage), s3_bucket=VALUES(s3_bucket), s3_endpoint=VALUES(s3_endpoint),
                s3_access_key=VALUES(s3_access_key), s3_secret_key=VALUES(s3_secret_key), enabled=VALUES(enabled)',
-            [$id, $data['interval_minutes'], $data['retention'], $data['storage'],
-            $data['s3_bucket'],
-            $data['s3_endpoint'],
-            $data['s3_access_key'],
-            $data['s3_secret_key'],
-            $data['enabled']]
+            [
+                $id,
+                $data['interval_minutes'],
+                $data['retention'],
+                $data['storage'],
+                $data['s3_bucket'],
+                $data['s3_endpoint'],
+                $data['s3_access_key'],
+                $data['s3_secret_key'],
+                $data['enabled'],
+            ]
         );
         \log_activity('save-backup-schedule', 'server:' . $s['name']);
         \flash('success', 'Backup schedule saved.');
         \redirect("/servers/$id/backups");
     }
 
-    public function runNow(int $id)
+    /**
+     * Run an on-demand local snapshot of a server's working directory.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function runNow(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_backups');
@@ -128,31 +207,41 @@ class Backups
         if (!is_dir($wd)) {
             @mkdir($wd, 0755, true);
         }
-        $out_dir = "$stateRoot/backups/$id";
-        @mkdir($out_dir, 0755, true);
+        $outDir = "$stateRoot/backups/$id";
+        @mkdir($outDir, 0755, true);
         $stamp = date('Ymd-His');
-        $name = "backup-{$stamp}.tar.gz";
-        $out = "$out_dir/$name";
-        $bid = DB::insert('backups', ['server_id' => $id,'name' => $name,'path' => $out,'status' => 'running','storage' => 'local']);
+        $name  = "backup-{$stamp}.tar.gz";
+        $out   = "$outDir/$name";
+        $bid   = DB::insert('backups', ['server_id' => $id, 'name' => $name, 'path' => $out, 'status' => 'running', 'storage' => 'local']);
         DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, "[backup] Manual snapshot → $name", 'system']);
+
         $cmd = sprintf('tar -czf %s -C %s . 2>&1', escapeshellarg($out), escapeshellarg($wd));
         exec($cmd, $lines, $rc);
         if ($rc !== 0) {
             DB::q('UPDATE backups SET status="failed", error=?, completed_at=NOW() WHERE id=?', [substr(implode(' ', $lines), 0, 900), $bid]);
-            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, "[backup] FAILED", 'error']);
+            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, '[backup] FAILED', 'error']);
             \flash('error', 'Backup failed: ' . substr(implode(' ', $lines), 0, 200));
         } else {
             DB::q('UPDATE backups SET status="completed", size_bytes=?, completed_at=NOW() WHERE id=?', [filesize($out) ?: 0, $bid]);
-            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, "[backup] Completed", 'system']);
+            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, '[backup] Completed', 'system']);
             \log_activity('run-backup', 'server:' . $s['name'], $name);
             $schedule = DB::one('SELECT retention FROM backup_schedules WHERE server_id=?', [$id]);
-            $this->applyRetention($id, (int)($schedule['retention'] ?? 7));
+            $this->applyRetention($id, (int) ($schedule['retention'] ?? 7));
             \flash('success', 'Backup created.');
         }
         \redirect("/servers/$id/backups");
     }
 
-    public function restore(int $id)
+    /**
+     * Restore a local backup into a server's working directory.
+     *
+     * The server must be offline and not running in the daemon. Extraction is
+     * staged in a sibling directory and swapped in atomically.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function restore(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_backups');
@@ -169,12 +258,12 @@ class Backups
             \flash('error', 'Stop the running server process before restoring a backup.');
             \redirect("/servers/$id/backups");
         }
-        if (($_POST['confirm_restore'] ?? '') !== 'RESTORE') {
-            \flash('error', 'Type RESTORE to confirm replacing this server’s files.');
+        if ((string) ($_POST['confirm_restore'] ?? '') !== 'RESTORE') {
+            \flash('error', 'Type RESTORE to confirm replacing this server\'s files.');
             \redirect("/servers/$id/backups");
         }
-        $bid = (int)($_POST['backup_id'] ?? 0);
-        $b = DB::one('SELECT * FROM backups WHERE id=? AND server_id=?', [$bid, $id]);
+        $bid  = (int) ($_POST['backup_id'] ?? 0);
+        $b    = DB::one('SELECT * FROM backups WHERE id=? AND server_id=?', [$bid, $id]);
         $stateRoot = \apex_state_root();
         $backupRoot = realpath("$stateRoot/backups/$id");
         $archive = $b && $b['storage'] === 'local' ? realpath($b['path']) : false;
@@ -186,15 +275,15 @@ class Backups
             \flash('error', $problem);
             \redirect("/servers/$id/backups");
         }
-        $wd = $s['work_dir'] ?: "$stateRoot/servers/$id";
+        $wd       = $s['work_dir'] ?: "$stateRoot/servers/$id";
         $serversRoot = realpath("$stateRoot/servers");
-        $parent = dirname($wd);
+        $parent   = dirname($wd);
         if (!$serversRoot || !str_starts_with($wd, $serversRoot . DIRECTORY_SEPARATOR) || $wd === $serversRoot) {
             \flash('error', 'Server working directory is outside the managed server root.');
             \redirect("/servers/$id/backups");
         }
         @mkdir($parent, 0755, true);
-        $stage = $parent . '/.restore-' . $id . '-' . bin2hex(random_bytes(6));
+        $stage    = $parent . '/.restore-' . $id . '-' . bin2hex(random_bytes(6));
         $previous = $parent . '/.previous-' . $id . '-' . bin2hex(random_bytes(6));
         @mkdir($stage, 0755, true);
         exec(sprintf('tar --no-same-owner --no-same-permissions -xzf %s -C %s 2>&1', escapeshellarg($archive), escapeshellarg($stage)), $out, $rc);
@@ -203,14 +292,14 @@ class Backups
             \flash('error', 'Restore extraction failed: ' . substr(implode(' ', $out), 0, 200));
             \redirect("/servers/$id/backups");
         }
-        $movedCurrent = !file_exists($wd) || rename($wd, $previous);
-        $installedStage = $movedCurrent && rename($stage, $wd);
+        $movedCurrent    = !file_exists($wd) || rename($wd, $previous);
+        $installedStage  = $movedCurrent && rename($stage, $wd);
         if ($installedStage) {
             if (file_exists($previous)) {
                 $this->removeTree($previous);
             }
             DB::q('UPDATE backups SET status="restored" WHERE id=?', [$bid]);
-            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, "[backup] Restored from " . $b['name'], 'system']);
+            DB::q('INSERT INTO server_logs (server_id, line, level) VALUES (?,?,?)', [$id, '[backup] Restored from ' . $b['name'], 'system']);
             \log_activity('restore-backup', 'server:' . $s['name'], $b['name']);
             \flash('success', 'Restored — restart the server to use the new files.');
         } else {
@@ -223,12 +312,18 @@ class Backups
         \redirect("/servers/$id/backups");
     }
 
-    public function delete(int $id)
+    /**
+     * Delete a backup record and its local file.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function delete(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_backups');
         $s = $this->server($id);
-        $bid = (int)($_POST['backup_id'] ?? 0);
+        $bid = (int) ($_POST['backup_id'] ?? 0);
         $b = DB::one('SELECT * FROM backups WHERE id=? AND server_id=?', [$bid, $id]);
         if ($b) {
             if ($b['path'] && file_exists($b['path'])) {
@@ -240,18 +335,26 @@ class Backups
         \redirect("/servers/$id/backups");
     }
 
-    public function download(int $id)
+    /**
+     * Download a local backup archive.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function download(int $id): void
     {
         \require_server_permission($id, 'view_backups');
-        $bid = (int)($_GET['backup_id'] ?? 0);
+        $bid = (int) ($_GET['backup_id'] ?? 0);
         $b = DB::one('SELECT * FROM backups WHERE id=? AND server_id=?', [$bid, $id]);
         if (!$b || !file_exists($b['path'])) {
             http_response_code(404);
             echo 'Not found';
             return;
         }
+        $filename = preg_replace('/[\r\n]+/', '', basename($b['path']));
         header('Content-Type: application/gzip');
-        header('Content-Disposition: attachment; filename="' . basename($b['path']) . '"');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($b['path']));
         readfile($b['path']);
     }
 }

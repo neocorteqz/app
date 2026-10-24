@@ -1,33 +1,60 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use DB;
 
+/**
+ * Database user provisioning controller.
+ *
+ * Creates, rotates, and drops MySQL/MariaDB users and databases inside the
+ * apexnode_ namespace using the provisioner connection. Requires
+ * DB_PROVISIONER_USER / DB_PROVISIONER_PASS.
+ */
 class DatabaseUsers
 {
-    public function index()
+    private const DB_NAMESPACE = 'apexnode_';
+
+    /**
+     * List provisioned database users.
+     *
+     * @return void
+     */
+    public function index(): void
     {
         \require_role('admin');
         $rows = DB::all('SELECT id, name, username, database_name, host, created_at FROM database_users ORDER BY id ASC');
         $config = require __DIR__ . '/../../config/config.php';
-        \view('database-users/index', ['title' => 'Database Users', 'rows' => $rows, 'credential_secret' => \flash('credential_secret'), 'provisioning_configured' => !empty($config['db_provisioner']['user']) && !empty($config['db_provisioner']['pass'])]);
+        $provisioningConfigured = !empty($config['db_provisioner']['user']) && !empty($config['db_provisioner']['pass']);
+        \view('database-users/index', [
+            'title'                 => 'Database Users',
+            'rows'                  => $rows,
+            'credential_secret'     => \flash('credential_secret'),
+            'provisioning_configured' => $provisioningConfigured,
+        ]);
     }
 
-    public function store()
+    /**
+     * Create a database user and database in the apexnode_ namespace.
+     *
+     * @return void
+     */
+    public function store(): void
     {
         \check_csrf();
         \require_role('admin');
 
-        $name = trim((string)($_POST['name'] ?? ''));
-        $dbName = trim((string)($_POST['database_name'] ?? ''));
-        $password = (string)($_POST['password'] ?? '');
-        if ($password === '') {
-            $password = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
+        $name   = trim((string) ($_POST['name'] ?? ''));
+        $dbName = trim((string) ($_POST['database_name'] ?? ''));
+        $pass   = (string) ($_POST['password'] ?? '');
+        if ($pass === '') {
+            $pass = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
         }
-        $host = trim((string)($_POST['host'] ?? 'localhost'));
+        $host = trim((string) ($_POST['host'] ?? 'localhost'));
 
-        if ($name === '' || $dbName === '' || strlen($password) < 8) {
+        if ($name === '' || $dbName === '' || strlen($pass) < 8) {
             \flash('error', 'Name, database name, and a password of at least 8 characters are required.');
             \redirect('/database-users');
         }
@@ -43,18 +70,19 @@ class DatabaseUsers
             \flash('error', 'Database name contains invalid characters.');
             \redirect('/database-users');
         }
-        $dbNameSafe = 'apexnode_' . preg_replace('/^apexnode_/', '', $dbNameSafe);
-        if ($dbNameSafe === 'apexnode_') {
+        $dbNameSafe = self::DB_NAMESPACE . preg_replace('/^' . preg_quote(self::DB_NAMESPACE, '/') . '/', '', $dbNameSafe);
+        if ($dbNameSafe === self::DB_NAMESPACE) {
             \flash('error', 'Database name must include a name after the required apexnode_ prefix.');
             \redirect('/database-users');
         }
 
         $host = preg_replace('/[^A-Za-z0-9_.:%-]/', '', $host) ?: 'localhost';
         $username = strtolower($safeUser . '_' . substr(md5($dbNameSafe . microtime(true)), 0, 6));
+
         $quotedUser = "'" . str_replace("'", "''", $username) . "'";
         $quotedHost = "'" . str_replace("'", "''", $host) . "'";
-        $quotedPass = "'" . str_replace("'", "''", $password) . "'";
-        $quotedDb = "`" . str_replace("`", "``", $dbNameSafe) . "`";
+        $quotedPass = "'" . str_replace("'", "''", $pass) . "'";
+        $quotedDb   = "`" . str_replace("`", "``", $dbNameSafe) . "`";
 
         try {
             $dsn = \DB::provisioner();
@@ -63,28 +91,32 @@ class DatabaseUsers
             $dsn->exec("GRANT ALL PRIVILEGES ON {$quotedDb}.* TO {$quotedUser}@{$quotedHost}");
 
             DB::insert('database_users', [
-                'name' => $name,
-                'username' => $username,
-                'password_hash' => password_hash($password, PASSWORD_BCRYPT),
-                'database_name' => $dbNameSafe,
-                'host' => $host,
+                'name'           => $name,
+                'username'       => $username,
+                'password_hash'  => password_hash($pass, PASSWORD_BCRYPT),
+                'database_name'  => $dbNameSafe,
+                'host'           => $host,
             ]);
 
             \log_activity('create-database-user', 'database-user:' . $username, $dbNameSafe);
-            \flash('credential_secret', $password);
+            \flash('credential_secret', $pass);
             \flash('success', 'Database user created for ' . $dbNameSafe . '.');
         } catch (\Throwable $e) {
-            \flash('error', 'Unable to create the database user: ' . $e->getMessage());
+            \flash('error', 'Unable to create the database user.');
         }
-
         \redirect('/database-users');
     }
 
-    public function rotate()
+    /**
+     * Rotate a database user's password on the server and in the panel record.
+     *
+     * @return void
+     */
+    public function rotate(): void
     {
         \check_csrf();
         \require_role('admin');
-        $id = (int)($_POST['id'] ?? 0);
+        $id = (int) ($_POST['id'] ?? 0);
         $row = DB::one('SELECT id, username, database_name, host FROM database_users WHERE id=?', [$id]);
         if (!$row) {
             \flash('error', 'Database user not found.');
@@ -101,17 +133,22 @@ class DatabaseUsers
             \flash('credential_secret', $password);
             \flash('success', 'Database password rotated. Copy the new password now; it will not be shown again.');
         } catch (\Throwable $e) {
-            \flash('error', 'Unable to rotate the database password: ' . $e->getMessage());
+            \flash('error', 'Unable to rotate the database password.');
         }
         \redirect('/database-users');
     }
 
-    public function delete()
+    /**
+     * Delete a database user and drop its database (apexnode_ namespace only).
+     *
+     * @return void
+     */
+    public function delete(): void
     {
         \check_csrf();
         \require_role('admin');
 
-        $id = (int)($_POST['id'] ?? 0);
+        $id = (int) ($_POST['id'] ?? 0);
         $row = DB::one('SELECT * FROM database_users WHERE id=?', [$id]);
         if (!$row) {
             \flash('error', 'Database user not found.');
@@ -119,12 +156,12 @@ class DatabaseUsers
         }
 
         try {
-            $quotedUser = "'" . str_replace("'", "''", $row['username']) . "'";
-            $quotedHost = "'" . str_replace("'", "''", $row['host']) . "'";
-            $quotedDb = "`" . str_replace("`", "``", $row['database_name']) . "`";
-            if (!str_starts_with($row['database_name'], 'apexnode_')) {
+            if (!str_starts_with($row['database_name'], self::DB_NAMESPACE)) {
                 throw new \RuntimeException('Refusing to drop a database outside the ApexNode namespace.');
             }
+            $quotedUser = "'" . str_replace("'", "''", $row['username']) . "'";
+            $quotedHost = "'" . str_replace("'", "''", $row['host']) . "'";
+            $quotedDb   = "`" . str_replace("`", "``", $row['database_name']) . "`";
             $dsn = \DB::provisioner();
             $dsn->exec("DROP USER IF EXISTS {$quotedUser}@{$quotedHost}");
             $dsn->exec("DROP DATABASE IF EXISTS {$quotedDb}");
@@ -132,9 +169,8 @@ class DatabaseUsers
             \log_activity('delete-database-user', 'database-user:' . $row['username'], $row['database_name']);
             \flash('success', 'Database user removed.');
         } catch (\Throwable $e) {
-            \flash('error', 'Unable to remove database user: ' . $e->getMessage());
+            \flash('error', 'Unable to remove database user.');
         }
-
         \redirect('/database-users');
     }
 }

@@ -1,15 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use DB;
 
 /**
  * File Manager — real file system under the configured ApexNode state directory.
+ *
  * All operations are constrained to the server work_dir via realpath comparison.
+ * Uploads are size- and extension-limited; executable/script extensions are
+ * refused so uploaded content cannot be interpreted by a web server.
  */
 class Files
 {
+    private const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
+    private const BLOCKED_EXTENSIONS = ['php', 'phtml', 'phar', 'pht', 'cgi', 'pl', 'py', 'sh', 'exe', 'bat', 'cmd', 'com'];
+
+    /**
+     * Fetch a server row or emit 404 and stop.
+     *
+     * @param int $id Server id.
+     * @return array The server row.
+     */
     private function server(int $id): array
     {
         $s = DB::one('SELECT * FROM servers WHERE id=?', [$id]);
@@ -20,15 +34,22 @@ class Files
         }
         return $s;
     }
+
+    /**
+     * Resolve and validate the server's working directory, caching it on the row.
+     *
+     * @param array $s The server row.
+     * @return string The real, contained working directory path.
+     */
     private function base(array $s): string
     {
         $rootPath = \apex_state_root() . '/servers';
-        $base = $s['work_dir'] ?: ($rootPath . '/' . (int)$s['id']);
+        $base     = $s['work_dir'] ?: ($rootPath . '/' . (int) $s['id']);
         if (!is_dir($base)) {
             @mkdir($base, 0755, true);
         }
-        $root = realpath($rootPath);
-        $resolved = realpath($base);
+        $root      = realpath($rootPath);
+        $resolved  = realpath($base);
         if (!$root || !$resolved || ($resolved !== $root && !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR))) {
             http_response_code(500);
             die('Server files are outside the managed root.');
@@ -38,12 +59,22 @@ class Files
         }
         return $resolved;
     }
+
+    /**
+     * Resolve a relative path inside the base directory and confirm it stays
+     * within the managed root, even through symlinks.
+     *
+     * @param string $base The managed base directory.
+     * @param string $rel  A relative path (may be empty).
+     * @return string|null The absolute path inside base, or null when unsafe.
+     */
     private function resolve(string $base, string $rel): ?string
     {
-        $base = rtrim($base, DIRECTORY_SEPARATOR);
-        $rel = ltrim($rel, '/');
+        $base  = rtrim($base, DIRECTORY_SEPARATOR);
+        $rel   = ltrim($rel, '/');
         $target = $base . '/' . $rel;
-        // Normalise
+
+        // Collapse . and .. segments.
         $parts = [];
         foreach (explode('/', $target) as $p) {
             if ($p === '' || $p === '.') {
@@ -55,8 +86,8 @@ class Files
             }
             $parts[] = $p;
         }
-        $abs = '/' . implode('/', $parts);
-        $prefix = $base . DIRECTORY_SEPARATOR;
+        $abs     = '/' . implode('/', $parts);
+        $prefix  = $base . DIRECTORY_SEPARATOR;
         if ($abs !== $base && !str_starts_with($abs, $prefix)) {
             return null;
         }
@@ -69,8 +100,8 @@ class Files
             }
             $probe = $parent;
         }
-        $resolvedRoot = realpath($base);
-        $resolvedProbe = realpath($probe);
+        $resolvedRoot   = realpath($base);
+        $resolvedProbe  = realpath($probe);
         if (!$resolvedRoot || !$resolvedProbe || ($resolvedProbe !== $resolvedRoot && !str_starts_with($resolvedProbe, $resolvedRoot . DIRECTORY_SEPARATOR))) {
             return null;
         }
@@ -83,12 +114,18 @@ class Files
         return $abs;
     }
 
-    public function index(int $id)
+    /**
+     * List the contents of a directory inside a server's files.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function index(int $id): void
     {
         \require_server_permission($id, 'view_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $path = $_GET['path'] ?? '';
+        $path = (string) ($_GET['path'] ?? '');
         $abs = $this->resolve($base, $path);
         if (!$abs || !is_dir($abs)) {
             \flash('error', 'Invalid path.');
@@ -101,22 +138,29 @@ class Files
             }
             $full = "$abs/$f";
             $items[] = [
-                'name' => $f, 'is_dir' => is_dir($full),
+                'name' => $f,
+                'is_dir' => is_dir($full),
                 'size' => is_file($full) ? filesize($full) : 0,
                 'mtime' => filemtime($full),
                 'rel' => ltrim(($path ? "$path/" : '') . $f, '/'),
             ];
         }
         usort($items, fn($a, $b) => ($b['is_dir'] <=> $a['is_dir']) ?: strcmp($a['name'], $b['name']));
-        \view('files/index', ['title' => 'Files — ' . $s['name'],'s' => $s,'items' => $items,'path' => $path,'base' => $base]);
+        \view('files/index', ['title' => 'Files — ' . $s['name'], 's' => $s, 'items' => $items, 'path' => $path, 'base' => $base]);
     }
 
-    public function edit(int $id)
+    /**
+     * Render the file editor for a single file.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function edit(int $id): void
     {
         \require_server_permission($id, 'view_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = $_GET['path'] ?? '';
+        $rel = (string) ($_GET['path'] ?? '');
         $abs = $this->resolve($base, $rel);
         if (!$abs || !is_file($abs)) {
             \flash('error', 'File not found.');
@@ -128,37 +172,49 @@ class Files
             \redirect("/servers/$id/files?path=" . dirname($rel));
         }
         $content = file_get_contents($abs);
-        \view('files/edit', ['title' => 'Edit ' . basename($rel),'s' => $s,'rel' => $rel,'content' => $content]);
+        \view('files/edit', ['title' => 'Edit ' . basename($rel), 's' => $s, 'rel' => $rel, 'content' => $content]);
     }
 
-    public function save(int $id)
+    /**
+     * Save (overwrite) a file's contents.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function save(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = $_POST['path'] ?? '';
+        $rel = (string) ($_POST['path'] ?? '');
         $abs = $this->resolve($base, $rel);
         if (!$abs) {
             \flash('error', 'Invalid path.');
             \redirect("/servers/$id/files");
         }
         @mkdir(dirname($abs), 0755, true);
-        file_put_contents($abs, $_POST['content'] ?? '');
+        file_put_contents($abs, (string) ($_POST['content'] ?? ''));
         \log_activity('edit-file', 'server:' . $s['name'], $rel);
         \flash('success', 'Saved ' . basename($rel));
         \redirect("/servers/$id/files/edit?path=" . urlencode($rel));
     }
 
-    public function mkdir(int $id)
+    /**
+     * Create a directory inside the server files.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function mkdir(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = trim($_POST['path'] ?? '', '/');
-        $name = trim($_POST['name'] ?? '');
-        if (!$name || preg_match('#[/\\\\]#', $name)) {
+        $rel = trim((string) ($_POST['path'] ?? ''), '/');
+        $name = trim((string) ($_POST['name'] ?? ''));
+        if ($name === '' || preg_match('#[/\\\\]#', $name)) {
             \flash('error', 'Invalid folder name.');
             \redirect("/servers/$id/files?path=" . urlencode($rel));
         }
@@ -169,15 +225,21 @@ class Files
         \redirect("/servers/$id/files?path=" . urlencode($rel));
     }
 
-    public function touch(int $id)
+    /**
+     * Create an empty file inside the server files.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function touch(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = trim($_POST['path'] ?? '', '/');
-        $name = trim($_POST['name'] ?? '');
-        if (!$name || preg_match('#[/\\\\]#', $name)) {
+        $rel = trim((string) ($_POST['path'] ?? ''), '/');
+        $name = trim((string) ($_POST['name'] ?? ''));
+        if ($name === '' || preg_match('#[/\\\\]#', $name)) {
             \flash('error', 'Invalid file name.');
             \redirect("/servers/$id/files?path=" . urlencode($rel));
         }
@@ -188,13 +250,19 @@ class Files
         \redirect("/servers/$id/files/edit?path=" . urlencode(($rel ? "$rel/" : '') . $name));
     }
 
-    public function delete(int $id)
+    /**
+     * Delete a file or directory inside the server files.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function delete(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = $_POST['path'] ?? '';
+        $rel = (string) ($_POST['path'] ?? '');
         $abs = $this->resolve($base, $rel);
         if ($abs && $abs !== $base) {
             if (is_dir($abs)) {
@@ -207,50 +275,85 @@ class Files
         \redirect("/servers/$id/files?path=" . urlencode(dirname($rel)));
     }
 
-    public function upload(int $id)
+    /**
+     * Upload a file into the server files.
+     *
+     * Refuses empty uploads, hidden files, oversized files, and executable or
+     * script extensions so uploaded content cannot be served or executed.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function upload(int $id): void
     {
         \check_csrf();
         \require_server_permission($id, 'manage_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = trim($_POST['path'] ?? '', '/');
-        $abs_dir = $this->resolve($base, $rel);
-        if (!$abs_dir || !is_dir($abs_dir)) {
+        $rel = trim((string) ($_POST['path'] ?? ''), '/');
+        $absDir = $this->resolve($base, $rel);
+        if (!$absDir || !is_dir($absDir)) {
             \flash('error', 'Invalid target folder.');
             \redirect("/servers/$id/files");
         }
-        if (empty($_FILES['file']['name'])) {
+        if (empty($_FILES['file']['name']) || !is_uploaded_file($_FILES['file']['tmp_name'] ?? '')) {
             \flash('error', 'No file uploaded.');
             \redirect("/servers/$id/files?path=" . urlencode($rel));
         }
-        $safe_name = basename($_FILES['file']['name']);
-        if (preg_match('#^\.#', $safe_name)) {
+        $safeName = basename($_FILES['file']['name']);
+        if ($safeName === '' || preg_match('#^\.#', $safeName)) {
             \flash('error', 'Hidden files not allowed.');
             \redirect("/servers/$id/files?path=" . urlencode($rel));
         }
-        move_uploaded_file($_FILES['file']['tmp_name'], "$abs_dir/$safe_name");
-        \log_activity('upload-file', 'server:' . $s['name'], $rel . '/' . $safe_name);
-        \flash('success', 'Uploaded ' . $safe_name);
+        $ext = strtolower(pathinfo($safeName, PATHINFO_EXTENSION));
+        if ($ext !== '' && in_array($ext, self::BLOCKED_EXTENSIONS, true)) {
+            \flash('error', 'File type "' . $ext . '" is not allowed for upload.');
+            \redirect("/servers/$id/files?path=" . urlencode($rel));
+        }
+        if ((int) $_FILES['file']['size'] > self::MAX_UPLOAD_BYTES) {
+            \flash('error', 'File exceeds the ' . (self::MAX_UPLOAD_BYTES / 1024 / 1024) . ' MB upload limit.');
+            \redirect("/servers/$id/files?path=" . urlencode($rel));
+        }
+        move_uploaded_file($_FILES['file']['tmp_name'], "$absDir/$safeName");
+        \log_activity('upload-file', 'server:' . $s['name'], $rel . '/' . $safeName);
+        \flash('success', 'Uploaded ' . $safeName);
         \redirect("/servers/$id/files?path=" . urlencode($rel));
     }
 
-    public function download(int $id)
+    /**
+     * Download a file from the server files.
+     *
+     * The Content-Disposition filename is sanitised so it cannot inject
+     * response headers.
+     *
+     * @param int $id Server id.
+     * @return void
+     */
+    public function download(int $id): void
     {
         \require_server_permission($id, 'view_files');
         $s = $this->server($id);
         $base = $this->base($s);
-        $rel = $_GET['path'] ?? '';
+        $rel = (string) ($_GET['path'] ?? '');
         $abs = $this->resolve($base, $rel);
         if (!$abs || !is_file($abs)) {
             http_response_code(404);
             echo 'Not found';
             return;
         }
+        $filename = preg_replace('/[\r\n]+/', '', basename($abs));
         header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($abs) . '"');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . filesize($abs));
         readfile($abs);
     }
 
+    /**
+     * Recursively remove a directory tree.
+     *
+     * @param string $dir Directory to remove.
+     * @return void
+     */
     private function rrmdir(string $dir): void
     {
         foreach (scandir($dir) as $f) {
